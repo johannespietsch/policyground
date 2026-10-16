@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import argparse
+import json
 import random
 from pathlib import Path
 
 from policyground.seed.generate import generate
-from policyground.seed.render import render_property
+from policyground.seed.render import render_brand, render_chain, render_property
 
 
 def main() -> None:
@@ -27,10 +28,18 @@ def main() -> None:
     corpus_dir.mkdir(parents=True, exist_ok=True)
     # Separate RNG stream for wording, so changing templates never changes the KG.
     rng = random.Random(f"{args.seed}-render")
+    for chain in kg.chains:
+        (corpus_dir / f"chain-{chain['id']}.md").write_text(render_chain(kg, chain["id"], rng))
+    for brand in kg.brands:
+        (corpus_dir / f"brand-{brand['id']}.md").write_text(render_brand(kg, brand["id"], rng))
+    manifest = {}
     for prop in kg.properties:
-        (corpus_dir / f"{prop['id']}.md").write_text(render_property(kg, prop["id"], rng))
+        doc, manifest[prop["id"]] = render_property(kg, prop["id"], rng)
+        (corpus_dir / f"{prop['id']}.md").write_text(doc)
+    (kg_path.parent / f"manifest-{args.date}.json").write_text(json.dumps(manifest, indent=2))
 
-    print(f"wrote {kg_path} ({len(kg.policy_facts)} facts) and {len(kg.properties)} docs to {corpus_dir}")
+    n_docs = len(kg.chains) + len(kg.brands) + len(kg.properties)
+    print(f"wrote {kg_path} ({len(kg.policy_facts)} facts) and {n_docs} docs to {corpus_dir}")
 
 
 if __name__ == "__main__":

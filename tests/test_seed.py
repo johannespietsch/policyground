@@ -21,3 +21,17 @@ def test_rate_plan_inherits_from_chain():
     resolved = kg.resolve("rate_plan", plan["id"])
     assert {"cancel_window_hours", "check_in_time", "refundable"} <= resolved.keys()
     assert resolved["refundable"]["source_type"] == "rate_plan"
+
+
+def test_property_overrides_are_never_deferred_to_brand():
+    import random
+
+    from policyground.seed.render import render_property
+
+    kg = generate()
+    rng = random.Random(0)
+    for prop in kg.properties:
+        _, manifest = render_property(kg, prop["id"], rng)
+        if manifest["cancel_by_reference"]:
+            source = kg.resolve("property", prop["id"])["cancel_window_hours"]["source_type"]
+            assert source != "property", prop["id"]

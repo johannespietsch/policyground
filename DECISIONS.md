@@ -264,3 +264,56 @@ The golden set still needs a ground-truth source.
 that produced the golden answers.
 
 **Revisit if:** The JSON and SQL resolvers diverge in ways that are hard to reconcile.
+
+---
+
+## D13 Document layout variation
+
+**Date:** 2026-10-16
+
+**Context:** With one fixed fact-sheet layout, an 800-char chunker separated the
+cancellation rule from the non-refundable exception in 62 of 62 docs. M1 exception
+questions would fail every time, and the M2 fix would look rigged.
+
+**Options:**
+- (a) Keep the fixed layout (100% split).
+- (b) Shuffle the sections after the overview.
+- (c) Two layouts: the standard fact sheet, or "booking terms first" (cancellation and
+  rate plans adjacent at the top).
+
+**Chosen:** (c), with 30% of docs booking-first.
+
+**Why:** (b) was tried and measured at 95% split. The roughly 400-char overview pushes
+almost any order across the 800-char boundary, so shuffling barely changed anything.
+(c) measured 43/62 = 69% split, inside the 60–80% target. Both layouts are realistic. The
+manifest records the layout per doc, so the eval can show failures concentrating in the
+split docs.
+
+**Revisit if:** The chunk size changes. The split rate depends on it.
+
+---
+
+## D14 Standard-terms references and chain/brand docs
+
+**Date:** 2026-10-16
+
+**Context:** Every property doc stated its own values in full, so a single chunk could
+always answer a question. The KG was convenient, not necessary.
+
+**Options:**
+- (a) Keep self-contained property docs.
+- (b) Some property docs defer cancellation to "the standard {brand} terms". Brand docs
+  either state their override or defer to the chain. One doc per chain states the
+  defaults.
+
+**Chosen:** (b). 40% of eligible property docs defer (35/150 at seed 42). 7 of those need
+3 hops: property → brand → chain.
+
+**Why:** Mirrors how real policy text is written, and creates questions that plain
+retrieval can only answer by chaining 2–3 documents, while the KG resolves them in one
+query. That makes the grounding story structural, not just a matter of chunking.
+Property-level overrides are never deferred, since an override must be stated (tested).
+
+**Revisit if:** There are too few 3-hop cases to say anything about. Raise the
+brand-defers-to-chain share. Only cancellation is deferred so far; pets could follow the
+same pattern.
