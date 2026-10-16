@@ -317,3 +317,30 @@ Property-level overrides are never deferred, since an override must be stated (t
 **Revisit if:** There are too few 3-hop cases to say anything about. Raise the
 brand-defers-to-chain share. Only cancellation is deferred so far; pets could follow the
 same pattern.
+
+---
+
+## D15 Database roles from M1
+
+**Date:** 2026-10-16
+
+**Context:** PLAN §4 has only the ingest path writing; the API connects read-only.
+
+**Options:**
+- (a) Create `ingest_rw` / `api_ro` in M1.
+- (b) Start with one superuser and split later.
+
+**Chosen:** (a) Three roles from the start: an admin that owns the schema and runs
+migrations, `ingest_rw` (read and write data, but no DDL), and `api_ro` (SELECT only).
+
+**Why:** About 10 lines of SQL now, against retrofitting grants later. With
+`ALTER DEFAULT PRIVILEGES`, every table created afterwards picks up the right grants
+automatically. Smoke-tested: `ingest_rw` can write but not `CREATE TABLE`, and `api_ro`
+can `SELECT` but not `INSERT` or `DELETE`.
+
+**Revisit if:** Not expected to change.
+
+**Notes:** The init script is baked into a small image, not bind-mounted, because Docker
+Desktop can't mount from `~/Documents` without a macOS privacy grant. Role names can't
+start with `pg_` (reserved), so the admin role is `pgadmin`. Postgres is published on
+host port 5433 to avoid clashing with other local projects.
