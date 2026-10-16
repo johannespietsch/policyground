@@ -344,3 +344,47 @@ can `SELECT` but not `INSERT` or `DELETE`.
 Desktop can't mount from `~/Documents` without a macOS privacy grant. Role names can't
 start with `pg_` (reserved), so the admin role is `pgadmin`. Postgres is published on
 host port 5433 to avoid clashing with other local projects.
+
+---
+
+## D16 Embedding column for multiple embedders
+
+**Date:** 2026-10-16
+
+**Context:** M2 compares chunkers × embedders. The second embedder may not be 384-dim.
+
+**Options:**
+- (a) One table with an untyped `vector` column, using exact scan.
+- (b) A typed `vector(384)` column with an HNSW index.
+- (c) One table per embedder.
+
+**Chosen:** (a). One `chunks` table with `chunker` and `embedder` columns.
+
+**Why:** Leaves the choice of second embedder open. Untyped vectors can't take an HNSW
+index, but at around 1k chunks an exact scan takes milliseconds. Exact search also keeps
+approximate-nearest-neighbour error out of the hit@5 comparison, so differences come
+from the chunker and embedder alone.
+
+**Revisit if:** The corpus grows to where exact scan shows up in p95 latency. Then add a
+typed column per embedder, or a partial index on a dimension cast.
+
+---
+
+## D17 Idempotency key deferred to M3 (deliberate)
+
+**Date:** 2026-10-16
+
+**Context:** PLAN M3's trap: a non-idempotent upsert makes backfill duplicate chunks,
+which inflates hit@5 while the system actually gets worse.
+
+**Options:**
+- (a) Add the unique key now.
+- (b) Leave it out. M1 ingest truncates and reloads; M3 backfill hits the bug for real.
+
+**Chosen:** (b), stated openly in a comment in `001_chunks.sql`.
+
+**Why:** Same approach as the M1 chunk-boundary trap. The M3 incident should be measured,
+not described hypothetically. The `INCIDENTS.md` entry must say the gap was left on
+purpose and record what the metric did, so the story stays honest.
+
+**Revisit if:** Anything other than the M3 backfill starts writing chunks before M3.
