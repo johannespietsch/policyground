@@ -136,3 +136,88 @@ and that gap is detectable. It runs locally in compose, with no account and no e
 
 **Revisit if:** Redpanda's compose setup eats the time budget. The M4 fallback writes
 mutations straight to the KG and keeps the drift story.
+
+---
+
+## D7 Answer LLM
+
+**Date:** 2026-10-16
+
+**Context:** The plan allows a single LLM provider. Cost per question and the M2
+retry-blowup trap have to be measurable.
+
+**Options:**
+- (a) Claude Haiku 5.5 (`claude-haiku-5-5`).
+- (b) Claude Sonnet 5.5.
+- (c) Local model via Ollama.
+
+**Chosen:** (a) Claude Haiku 5.5.
+
+**Why:** It's cheap and fast enough to run the eval often. A smaller model makes more of
+the mistakes the validator exists to catch, so the grounding story shows up in the
+numbers instead of being hidden by a stronger model.
+
+**Revisit if:** Correctness stays low even with the right facts in context. That would
+be a model-capability ceiling, not a grounding problem.
+
+---
+
+## D8 Primary embedding model
+
+**Date:** 2026-10-16
+
+**Context:** M1 needs a small local embedder. M2 compares two embedders × two chunkers
+on hit@5.
+
+**Options:**
+- (a) `BAAI/bge-small-en-v1.5` (384-dim).
+- (b) `all-MiniLM-L6-v2` (384-dim).
+- (c) `nomic-embed-text-v1.5` (768-dim).
+
+**Chosen:** (a) bge-small-en-v1.5.
+
+**Why:** Strong retrieval for its size, runs on CPU, no API key or rate limit. The
+second M2 model is still to be decided.
+
+**Revisit if:** hit@5 is poor even with structural chunking.
+
+---
+
+## D9 Python tooling
+
+**Date:** 2026-10-16
+
+**Options:**
+- (a) uv.
+- (b) Poetry.
+- (c) pip + venv + requirements.txt.
+
+**Chosen:** (a) uv.
+
+**Why:** Fast, lockfile-based and reproducible. It also handles the separate Airflow venv
+(installed against Airflow's constraints file) in M3 without fighting the main project's
+resolver.
+
+**Revisit if:** Airflow's constraints install conflicts with uv's resolver.
+
+---
+
+## D10 Abstention signal
+
+**Context:** 5 of the 30 golden questions are unanswerable. The system has to signal
+abstention in a way the eval can score deterministically.
+
+**Date:** 2026-10-16
+
+**Options:**
+- (a) Structured output: `{answer, citations[], abstain: bool}`.
+- (b) Sentinel string in free text.
+- (c) Retrieval-score threshold before the LLM call.
+
+**Chosen:** (a) Structured output field.
+
+**Why:** Deterministic to score and parse. Citations arrive as data, not prose. In M2 the
+validator can force `abstain=true` regardless of what the model said. A score threshold
+would conflate "no relevant text" with "relevant text that doesn't answer the question".
+
+**Revisit if:** The model over-abstains. Check the prompt before moving the decision.
