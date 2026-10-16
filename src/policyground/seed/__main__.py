@@ -1,0 +1,37 @@
+"""`python -m policyground.seed` — write data/<tenant>/kg.json and the corpus snapshot."""
+
+from __future__ import annotations
+
+import argparse
+import random
+from pathlib import Path
+
+from policyground.seed.generate import generate
+from policyground.seed.render import render_property
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--tenant", default="hotels")
+    ap.add_argument("--date", default="2026-10-16", help="snapshot date (YYYY-MM-DD)")
+    ap.add_argument("--root", type=Path, default=Path("."))
+    args = ap.parse_args()
+
+    kg = generate(seed=args.seed, tenant=args.tenant, snapshot_date=args.date)
+    kg_path = args.root / "data" / args.tenant / "kg.json"
+    kg_path.parent.mkdir(parents=True, exist_ok=True)
+    kg_path.write_text(kg.to_json())
+
+    corpus_dir = args.root / "corpus" / args.tenant / args.date
+    corpus_dir.mkdir(parents=True, exist_ok=True)
+    # Separate RNG stream for wording, so changing templates never changes the KG.
+    rng = random.Random(f"{args.seed}-render")
+    for prop in kg.properties:
+        (corpus_dir / f"{prop['id']}.md").write_text(render_property(kg, prop["id"], rng))
+
+    print(f"wrote {kg_path} ({len(kg.policy_facts)} facts) and {len(kg.properties)} docs to {corpus_dir}")
+
+
+if __name__ == "__main__":
+    main()
