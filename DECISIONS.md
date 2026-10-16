@@ -221,3 +221,46 @@ validator can force `abstain=true` regardless of what the model said. A score th
 would conflate "no relevant text" with "relevant text that doesn't answer the question".
 
 **Revisit if:** The model over-abstains. Check the prompt before moving the decision.
+
+---
+
+## D11 Brand level in the hierarchy
+
+**Date:** 2026-10-16
+
+**Context:** The plan contradicted itself: D3 described chain → brand → property, while
+the M2 table list had no brand.
+
+**Options:**
+- (a) chain → brand → property → rate_plan.
+- (b) chain → property → rate_plan.
+
+**Chosen:** (a) Include brand.
+
+**Why:** Without brand, inheritance is a plain join, and calling the resolver a
+recursive CTE (D3) would be hard to defend. Three levels also allow an override of an
+override (chain sets X, brand changes it, property changes it back), which makes a
+harder exception case for the golden set.
+
+**Revisit if:** Never. This is a modelling choice the rest depends on.
+
+---
+
+## D12 KG representation in M1
+
+**Date:** 2026-10-16
+
+**Context:** M1 retrieval is plain RAG (the "before" picture) and doesn't query the KG.
+The golden set still needs a ground-truth source.
+
+**Options:**
+- (a) The generator emits `kg.json` in M1. Postgres KG tables arrive in M2.
+- (b) Create the KG tables in M1 and have the golden set query them.
+
+**Chosen:** (a) `kg.json` in M1.
+
+**Why:** Keeps M1 inside its 3h and keeps the milestone boundary clean. M2 loads the same
+`kg.json` into tables, and the SQL resolver can be tested against the Python resolver
+that produced the golden answers.
+
+**Revisit if:** The JSON and SQL resolvers diverge in ways that are hard to reconcile.
