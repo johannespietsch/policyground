@@ -7,6 +7,7 @@ import json
 import random
 from pathlib import Path
 
+from policyground.eval.golden import build as build_golden
 from policyground.seed.generate import generate
 from policyground.seed.render import render_brand, render_chain, render_property
 
@@ -38,8 +39,12 @@ def main() -> None:
         (corpus_dir / f"{prop['id']}.md").write_text(doc)
     (kg_path.parent / f"manifest-{args.date}.json").write_text(json.dumps(manifest, indent=2))
 
+    golden = build_golden(kg, manifest, seed=args.seed)
+    (kg_path.parent / "golden.json").write_text(json.dumps(golden, indent=2))
+
     n_docs = len(kg.chains) + len(kg.brands) + len(kg.properties)
-    print(f"wrote {kg_path} ({len(kg.policy_facts)} facts) and {n_docs} docs to {corpus_dir}")
+    print(f"wrote {kg_path} ({len(kg.policy_facts)} facts) and {n_docs} docs to {corpus_dir}, "
+          f"{len(golden)} golden questions")
 
 
 if __name__ == "__main__":

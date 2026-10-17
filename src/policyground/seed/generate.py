@@ -61,14 +61,18 @@ def generate(seed: int = 42, tenant: str = "hotels", snapshot_date: str = "2026-
             if rng.random() < P_BRAND_OVERRIDE / 2:
                 fact("brand", brand_id, "pets_allowed", rng.random() < 0.5)
 
+    taken_names: set[str] = set()
     for p in range(1, N_PROPERTIES + 1):
         prop_id = f"P{p:03d}"
         brand = rng.choice(kg.brands)
-        city = rng.choice(CITIES)
-        kg.properties.append({
-            "id": prop_id, "brand_id": brand["id"], "city": city,
-            "name": f"{brand['name']} {city} {rng.choice(PROPERTY_WORDS)}",
-        })
+        # Names must be unique: golden questions identify properties by name.
+        while True:
+            city = rng.choice(CITIES)
+            name = f"{brand['name']} {city} {rng.choice(PROPERTY_WORDS)}"
+            if name not in taken_names:
+                break
+        taken_names.add(name)
+        kg.properties.append({"id": prop_id, "brand_id": brand["id"], "city": city, "name": name})
         if rng.random() < P_PROPERTY_OVERRIDE:
             # May coincide with the chain value after a brand override: an
             # "override of an override" that lands back on the original.

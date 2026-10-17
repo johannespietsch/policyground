@@ -291,6 +291,9 @@ split docs.
 
 **Revisit if:** The chunk size changes. The split rate depends on it.
 
+**Amended 2026-10-17:** Fixing duplicate property names (see D18) changed the RNG
+stream. Re-measured: 42/54 = 78% split. Still in range.
+
 ---
 
 ## D14 Standard-terms references and chain/brand docs
@@ -317,6 +320,9 @@ Property-level overrides are never deferred, since an override must be stated (t
 **Revisit if:** There are too few 3-hop cases to say anything about. Raise the
 brand-defers-to-chain share. Only cancellation is deferred so far; pets could follow the
 same pattern.
+
+**Amended 2026-10-17:** After the duplicate-name fix (D18), 45/150 docs defer, and 14 of
+them need 3 hops. That's enough to keep 3-hop as a separate tagged question type.
 
 ---
 
@@ -388,3 +394,42 @@ not described hypothetically. The `INCIDENTS.md` entry must say the gap was left
 purpose and record what the metric did, so the story stays honest.
 
 **Revisit if:** Anything other than the M3 backfill starts writing chunks before M3.
+
+---
+
+## D18 Golden set design
+
+**Date:** 2026-10-17
+
+**Context:** The M1 eval needs 30 Q/A pairs (20 plain, 5 exception, 5 unanswerable),
+scored deterministically with no LLM judge (PLAN §6).
+
+**Options considered:**
+- Cancellation answers as a window in hours vs. an exact deadline timestamp.
+- Unanswerable questions as non-existent properties vs. facts the KG never holds.
+
+**Chosen:**
+- Cancellation questions give a check-in date and expect the last free-cancellation
+  moment as `YYYY-MM-DD HH:MM`, i.e. check-in date + check-in time − window.
+- Typed expected answers: `datetime`, `time`, `eur`, `no_free_cancellation`, `abstain`.
+- Plain questions (20): 8 cancellation deadlines (stated in the property doc, no
+  override), 4 check-in times, 4 check-out times, 4 pet fees.
+- Exception questions (5), each tagged by type: 2 non-refundable, 1 by-reference 2-hop,
+  1 by-reference 3-hop, 1 property override that differs from the brand value.
+- Unanswerable questions (5): parking, shuttle, minimum age, city tax, late-check-out
+  fee. A test checks these words never appear in the corpus.
+- Each question records `evidence_docs`, which M2 hit@5 will use. A test checks that
+  every expected answer is derivable from its evidence docs.
+
+**Why:** A timestamp turns "48h" into something the validator can check exactly, and it
+forces date arithmetic, where models slip. Facts the KG never holds are a harder
+abstention test than a missing property: retrieval still returns a confident-looking,
+on-topic chunk.
+
+**Found while building:** The generator produced 6 duplicate property names, which would
+have made those questions ambiguous. Fixed by redrawing until the name is unique, and
+tested. This changed the RNG stream, so the corpus numbers in D13 and D14 were
+re-measured.
+
+**Revisit if:** 30 questions turn out too few to separate the exception types. Expect
+the noise band (M4) to answer that.
