@@ -1,4 +1,4 @@
-.PHONY: up down reset migrate seed ingest test psql
+.PHONY: up down reset migrate seed ingest api test psql
 
 up:
 	docker compose build -q
@@ -22,6 +22,9 @@ seed:
 
 ingest:
 	uv run python -m policyground.ingest
+
+api:  ## http://localhost:8000
+	uv run uvicorn policyground.api:app --port 8000
 
 test:
 	uv run pytest -q
