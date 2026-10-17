@@ -1,4 +1,4 @@
-.PHONY: up down reset migrate seed test psql
+.PHONY: up down reset migrate seed ingest test psql
 
 up:
 	docker compose build -q
@@ -19,6 +19,9 @@ migrate:  ## apply db/migrations in order, as the schema owner (files are idempo
 
 seed:
 	uv run python -m policyground.seed
+
+ingest:
+	uv run python -m policyground.ingest
 
 test:
 	uv run pytest -q
