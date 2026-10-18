@@ -74,7 +74,7 @@ def main() -> None:
     }
     by_type = defaultdict(lambda: [0, 0, 0])
     for r in results:
-        t = by_type[r["type"].rsplit("_", 0)[0]]
+        t = by_type[r["type"]]
         t[0] += r["correct"]; t[1] += 1; t[2] += bool(r["hit5"])
 
     out = args.root / "data" / args.tenant / "eval" / f"run-{run_id}.json"
@@ -94,7 +94,8 @@ def main() -> None:
           f"hit@5 {s['hit5']:.2f}  $/q {s['cost_per_q']:.5f}  p50 {s['p50_s']:.1f}s  p95 {s['p95_s']:.1f}s")
     print("by type (correct/n, hit@5):")
     for t, (c, n, h) in sorted(by_type.items()):
-        print(f"  {t:34s} {c}/{n}  hit {h}/{n}")
+        hit = "-" if t.startswith("unanswerable") else f"{h}/{n}"  # no evidence to retrieve
+        print(f"  {t:34s} {c}/{n}  hit {hit}")
     print(f"wrote {out}")
 
 
