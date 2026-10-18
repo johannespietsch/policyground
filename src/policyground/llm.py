@@ -12,6 +12,9 @@ import anthropic
 from pydantic import BaseModel
 
 MODEL = "claude-haiku-5-5"
+# USD per million tokens, for prompts up to 100K tokens (cached pricing table, 2026-10-06).
+PRICE_IN_PER_MTOK = 0.10
+PRICE_OUT_PER_MTOK = 0.50
 # Explicit, because Haiku 5.5's default is "medium" too; changing it is a cost lever (M2).
 EFFORT = "medium"
 
