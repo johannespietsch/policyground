@@ -22,15 +22,16 @@ Every column is defined here before it has numbers (PLAN §7). Rows are appended
 | p50 / p95 s | End-to-end latency per question (graph invoke), in seconds. Runs sequentially. |
 | graph | `rag` = M1 retrieve → answer; `kg` = M2 route → kg_lookup → retrieve → answer (→ validate). Added 2026-10-19; rows before that are `rag`. |
 | unsupported | Share of **answerable** questions that are value-correct but cite none of the governing evidence (`golden.json` `governing`, D19). Counted inside `correct`, not subtracted from it. Added 2026-10-19. |
+| val-rej | Validator rejection rate: share of headline questions that reached the answer node whose **first** answer the validator rejected (D24, strict). `—` for the rag graph, which has no validator. Added 2026-10-19. |
+| fallback | Share of those questions that needed a regenerate or ended in a validator-forced abstain. Added 2026-10-19. |
 | fuzzy | Correct answers on Q31–Q35: damaged property names, 4 resolvable plus 1 ambiguous, where abstaining is correct (D22). Added 2026-10-19. |
 
 **Defined now, measured from later milestones:**
 
 | Metric | Definition | From |
 |---|---|---|
+| validator catch rate (injected) | Share of injected faults (wrong date / time / window / amount, uncited value, invented citation) applied to real answers that the validator rejects. False-positive rate = share of the unmodified answers it rejects. `python -m policyground.eval.faults`, separate table. | M2 |
 | hallucinated-number rate | Share of non-abstained answers containing a date, time or EUR amount that matches no KG fact for the property and appears in no cited chunk (date arithmetic from a KG window counts as backed). | M2 |
-| validator rejection rate | Share of answers the validator rejects on the first attempt. | M2 |
-| fallback rate | Share of questions that needed the regenerate path or ended in a validator-forced abstain. | M2 |
 | hit@5 per chunker × embedder | hit@5 as above, retrieval only (no LLM), for each combination. Separate table. | M2 |
 | DAG retry count | Task retries per DAG run, by task. | M3 |
 | eval noise band | Mean ± 2σ of `correct` over 3 runs on an unchanged corpus. Nothing counts as drift inside it. | M4 |
@@ -40,8 +41,8 @@ Every column is defined here before it has numbers (PLAN §7). Rows are appended
 
 ## Eval runs
 
-| run | commit | ms | tenant | chunker | embedder | model | n | correct | abst-acc | false-abst | hit@5 | $/q | p50 s | p95 s | graph | unsupported | fuzzy |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| run | commit | ms | tenant | chunker | embedder | model | n | correct | abst-acc | false-abst | hit@5 | $/q | p50 s | p95 s | graph | unsupported | fuzzy | val-rej | fallback |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | 20261018-113345 | 57c655c | M1 | hotels | naive-800 | bge-small-en-v1.5 | claude-haiku-5-5 | 30 | 0.76 | 1.00 | 0.24 | 0.72 | 0.00031 | 1.5 | 3.2 |
 | 20261019-170456 | 5c79f8f | M1 | hotels | naive-800 | bge-small-en-v1.5 | claude-haiku-5-5 | 30 | 0.76 | 1.00 | 0.24 | 0.72 | 0.00031 | 1.6 | 3.5 | rag | 0.04 | 4/5 |
 | 20261019-170614 | 5c79f8f+dirty | M2 | hotels | naive-800 | bge-small-en-v1.5 | claude-haiku-5-5 | 30 | 1.00 | 1.00 | 0.00 | 1.00 | 0.00031 | 1.8 | 2.8 | kg | 0.00 | 5/5 |

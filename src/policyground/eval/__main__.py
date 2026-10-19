@@ -32,6 +32,14 @@ def git_sha() -> str:
     return sha + ("+dirty" if dirty else "")
 
 
+def _rate(rows, pred) -> float | None:
+    return sum(map(pred, rows)) / len(rows) if rows else None
+
+
+def _fmt(x) -> str:
+    return "—" if x is None else f"{x:.2f}"
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--tenant", default="hotels")
@@ -58,6 +66,14 @@ def main() -> None:
             "correct": is_correct(q["expected"], state["answer"], state["abstain"]),
             "supported": is_supported(q["governing"], state["citations"]),
             "property_id_resolved": state.get("property_id"),
+            "attempts": state.get("attempts", 0),
+            "validator_problems": state.get("validator_problems") or [],
+            "validator_warnings": state.get("validator_warnings") or [],
+            "forced_abstain": bool(state.get("forced_abstain")),
+            "raw_citations": state.get("raw_citations", []),
+            # Kept so the validator can be re-run offline on injected faults (eval/faults.py).
+            "facts": state.get("facts", []),
+            "chunk_texts": state.get("chunks", []),
             "input_tokens": state["input_tokens"], "output_tokens": state["output_tokens"],
             "cost_usd": (state["input_tokens"] * PRICE_IN_PER_MTOK
                          + state["output_tokens"] * PRICE_OUT_PER_MTOK) / 1e6,
@@ -77,6 +93,11 @@ def main() -> None:
         "false_abst": sum(r["abstain"] for r in answerable) / len(answerable),
         "hit5": sum(r["hit5"] for r in answerable) / len(answerable),
         "unsupported": sum(r["correct"] and not r["supported"] for r in answerable) / len(answerable),
+        # Over questions that reached the answer node at least once.
+        "val_rej": None if args.graph == "rag" else _rate(
+            [r for r in core if r["attempts"]], lambda r: bool(r["validator_problems"])),
+        "fallback": None if args.graph == "rag" else _rate(
+            [r for r in core if r["attempts"]], lambda r: r["attempts"] > 1 or r["forced_abstain"]),
         "fuzzy_correct": sum(r["correct"] for r in fuzzy),
         "fuzzy_n": len(fuzzy),
         "cost_per_q": statistics.mean(r["cost_usd"] for r in results),
@@ -91,7 +112,8 @@ def main() -> None:
     out = args.root / "data" / args.tenant / "eval" / f"run-{run_id}.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     ms = MILESTONE[args.graph]
-    meta = {"run": run_id, "commit": git_sha(), "milestone": ms, "graph": args.graph, "tenant": args.tenant,
+    from policyground.graph import MAX_REGENERATE
+    meta = {"max_regenerate": MAX_REGENERATE, "run": run_id, "commit": git_sha(), "milestone": ms, "graph": args.graph, "tenant": args.tenant,
             "chunker": CHUNKER, "embedder": EMBEDDER, "model": MODEL, "n": len(core)}
     out.write_text(json.dumps({**meta, "summary": summary, "results": results}, indent=2))
 
@@ -100,12 +122,14 @@ def main() -> None:
     row = (f"| {run_id} | {meta['commit']} | {ms} | {args.tenant} | {CHUNKER} | {EMBEDDER} | {MODEL} "
            f"| {len(core)} | {s['correct']:.2f} | {s['abst_acc']:.2f} | {s['false_abst']:.2f} "
            f"| {s['hit5']:.2f} | {s['cost_per_q']:.5f} | {s['p50_s']:.1f} | {s['p95_s']:.1f} "
-           f"| {args.graph} | {s['unsupported']:.2f} | {fuzzy_cell} |\n")
+           f"| {args.graph} | {s['unsupported']:.2f} | {fuzzy_cell} "
+           f"| {_fmt(s['val_rej'])} | {_fmt(s['fallback'])} |\n")
     with open(args.root / "METRICS.md", "a") as f:
         f.write(row)
 
     print(f"\ncorrect {s['correct']:.2f}  abst-acc {s['abst_acc']:.2f}  false-abst {s['false_abst']:.2f}  "
-          f"hit@5 {s['hit5']:.2f}  unsupported {s['unsupported']:.2f}  fuzzy {fuzzy_cell}  $/q {s['cost_per_q']:.5f}  p50 {s['p50_s']:.1f}s  p95 {s['p95_s']:.1f}s")
+          f"hit@5 {s['hit5']:.2f}  unsupported {s['unsupported']:.2f}  fuzzy {fuzzy_cell}  "
+          f"val-rej {_fmt(s['val_rej'])}  fallback {_fmt(s['fallback'])}  $/q {s['cost_per_q']:.5f}  p50 {s['p50_s']:.1f}s  p95 {s['p95_s']:.1f}s")
     print("by type (correct/n, hit@5):")
     for t, (c, n, h) in sorted(by_type.items()):
         no_evidence = all(not r["evidence_docs"] for r in results if r["type"] == t)
@@ -115,6 +139,10 @@ def main() -> None:
         if not r["correct"] or (r["expected"]["kind"] != "abstain" and not r["supported"]):
             tag = "WRONG" if not r["correct"] else "UNSUPPORTED"
             print(f"  {tag:11s} {r['id']} {r['type']}: {r['answer'][:150]}  cites={r['citations']}")
+    for r in results:
+        if r["validator_problems"] or r["validator_warnings"]:
+            print(f"  VALIDATOR   {r['id']} attempts={r['attempts']} forced_abstain={r['forced_abstain']} "
+                  f"problems={r['validator_problems']} warnings={r['validator_warnings']}")
     print(f"wrote {out}")
 
 

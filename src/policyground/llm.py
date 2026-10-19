@@ -82,12 +82,17 @@ Rules:
 
 
 def answer_with_facts(question: str, property_name: str, facts: list[tuple[str, str]],
-                      excerpts: list[tuple[str, str]]) -> LLMResult:
+                      excerpts: list[tuple[str, str]], feedback: list[str] | None = None) -> LLMResult:
     """facts: (fact_id, rendered "key = value (applies to ...)") pairs."""
     fact_xml = "\n".join(f'<fact id="{fid}">{text}</fact>' for fid, text in facts)
     excerpt_xml = "\n\n".join(f'<excerpt id="{cid}">\n{text}\n</excerpt>' for cid, text in excerpts)
     content = (f"Property: {property_name}\n\n<facts>\n{fact_xml}\n</facts>\n\n"
                f"<excerpts>\n{excerpt_xml}\n</excerpts>\n\nQuestion: {question}")
+    if feedback:
+        content += ("\n\nA previous answer was rejected by an automatic checker:\n"
+                    + "\n".join(f"- {p}" for p in feedback)
+                    + "\nAnswer again. Every date, time, amount and number of hours must come "
+                      "from evidence you cite. If you can't back it, abstain.")
     return _call(SYSTEM_KG, content)
 
 
