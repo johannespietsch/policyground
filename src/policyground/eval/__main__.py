@@ -26,7 +26,9 @@ CHUNKER, EMBEDDER = "naive-800", "bge-small-en-v1.5"
 
 def git_sha() -> str:
     sha = subprocess.run(["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True).stdout.strip()
-    dirty = subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True).stdout.strip()
+    # METRICS.md is excluded: the previous eval run's appended row would mark every run dirty.
+    dirty = subprocess.run(["git", "status", "--porcelain", "--", ".", ":!METRICS.md"],
+                           capture_output=True, text=True).stdout.strip()
     return sha + ("+dirty" if dirty else "")
 
 
