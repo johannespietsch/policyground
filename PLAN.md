@@ -16,12 +16,21 @@ it refuses instead of guessing.
 
 ## 2. What this project is designed to demonstrate
 
-Most RAG demos stop at "retrieve, then generate." This one is built around a specific,
-common failure mode instead: **plain RAG over policy text fails in two distinct ways** —
-chunk boundaries separate a rule from its exception, and a vector index lags behind
-real-time changes to the underlying source of truth. PolicyGround treats a knowledge
-graph as the ground truth and uses RAG only for explanation and citation, with a
-deterministic validator rejecting any date or amount the graph doesn't back up.
+Most RAG demos stop at "retrieve, then generate." This one is built around how plain
+RAG over policy text actually fails, measured rather than assumed. The original
+hypothesis was confident hallucination: chunk boundaries separating a rule from its
+exception. The M1 baseline showed something different (INCIDENTS #1, D20). Over many
+near-identical entities, similarity search often never retrieves the right property, and
+a careful model then **abstains**. That's safe, but useless to a support agent (24%
+false abstention at baseline). The second failure is that a vector index lags behind
+real-time changes to the source of truth.
+
+PolicyGround treats a knowledge graph as the ground truth. It resolves the entity and its
+policy deterministically first, and uses RAG only for explanation and citation. The
+headline is turning safe-but-useless abstentions into correct, cited answers. A
+deterministic validator is the guardrail: it rejects any date or amount the graph
+doesn't back up, and flags correct values resting on the wrong citation (D19). Its catch
+rate is measured, not presumed.
 
 The build deliberately spans the full stack a production GenAI system needs around the
 model call itself: an agent framework (LangGraph) with a validate/retry/abstain path, a

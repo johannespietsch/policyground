@@ -433,3 +433,52 @@ re-measured.
 
 **Revisit if:** 30 questions turn out too few to separate the exception types. Expect
 the noise band (M4) to answer that.
+
+---
+
+## D19 "Unsupported" as its own scoring outcome
+
+**Date:** 2026-10-19
+
+**Context:** INCIDENTS #2. Q24 scored correct, but on the chain doc, when the property
+defers to its brand. Value-only scoring can't tell a supported answer from a lucky one.
+
+**Options:**
+- (a) Keep no-op overrides in the golden set. Score a correct value whose citations don't
+  include the governing evidence as a separate outcome, `unsupported`.
+- (b) Exclude no-op overrides when picking exception questions.
+
+**Chosen:** (a).
+
+**Why:** No-op overrides are realistic, and hiding them would hide a real reasoning
+failure. A separate outcome keeps `correct` honest. It also gives the M2 validator a
+concrete thing to catch: a value that's right but cited from a non-governing document.
+
+**Revisit if:** "Governing evidence" proves too fuzzy to define deterministically. Fall
+back to "cites at least one evidence doc".
+
+---
+
+## D20 Reframe the pitch around measured failure (over-abstention)
+
+**Date:** 2026-10-19
+
+**Context:** The plan's pitch assumed plain RAG fails by confident hallucination. In the
+M1 baseline, all 7 failures were retrieval misses that the model correctly abstained on.
+There were no confident wrong answers, and the chunk-boundary trap was never reached.
+
+**Options:**
+- (a) Reframe: plain RAG's measured cost is over-abstention (24%). The KG route turns
+  abstentions into correct answers, and the validator is a guardrail whose catch rate is
+  measured.
+- (b) Keep the original hallucination framing and look for hallucinations once
+  retrieval returns the right but split chunks.
+
+**Chosen:** (a). PLAN §2 rewritten accordingly.
+
+**Why:** The project's credibility rests on reporting what was measured. A pitch that
+claims a failure mode the baseline didn't show would be the first thing to fall apart
+under questioning. The hallucination hypothesis stays open and is tested in M2, after
+entity resolution; if it shows up there, it's reported as a finding.
+
+**Revisit if:** M2 shows confident wrong answers once the split chunks are reachable.
