@@ -43,3 +43,5 @@ Every column is defined here before it has numbers (PLAN §7). Rows are appended
 | run | commit | ms | tenant | chunker | embedder | model | n | correct | abst-acc | false-abst | hit@5 | $/q | p50 s | p95 s | graph | unsupported | fuzzy |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | 20261018-113345 | 57c655c | M1 | hotels | naive-800 | bge-small-en-v1.5 | claude-haiku-5-5 | 30 | 0.76 | 1.00 | 0.24 | 0.72 | 0.00031 | 1.5 | 3.2 |
+| 20261019-170456 | 5c79f8f | M1 | hotels | naive-800 | bge-small-en-v1.5 | claude-haiku-5-5 | 30 | 0.76 | 1.00 | 0.24 | 0.72 | 0.00031 | 1.6 | 3.5 | rag | 0.04 | 4/5 |
+| 20261019-170614 | 5c79f8f+dirty | M2 | hotels | naive-800 | bge-small-en-v1.5 | claude-haiku-5-5 | 30 | 1.00 | 1.00 | 0.00 | 1.00 | 0.00031 | 1.8 | 2.8 | kg | 0.00 | 5/5 |

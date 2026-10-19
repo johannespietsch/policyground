@@ -106,7 +106,8 @@ def main() -> None:
           f"hit@5 {s['hit5']:.2f}  unsupported {s['unsupported']:.2f}  fuzzy {fuzzy_cell}  $/q {s['cost_per_q']:.5f}  p50 {s['p50_s']:.1f}s  p95 {s['p95_s']:.1f}s")
     print("by type (correct/n, hit@5):")
     for t, (c, n, h) in sorted(by_type.items()):
-        hit = "-" if t.startswith("unanswerable") else f"{h}/{n}"  # no evidence to retrieve
+        no_evidence = all(not r["evidence_docs"] for r in results if r["type"] == t)
+        hit = "-" if no_evidence else f"{h}/{n}"  # nothing to retrieve
         print(f"  {t:34s} {c}/{n}  hit {hit}")
     for r in results:
         if not r["correct"] or (r["expected"]["kind"] != "abstain" and not r["supported"]):
