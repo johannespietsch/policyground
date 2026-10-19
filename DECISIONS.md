@@ -515,3 +515,61 @@ would be hard to defend. Cost: type-specific fields (city, rate-plan kind) live 
 
 **Revisit if:** Typed constraints start mattering, e.g. invalid `attrs` slipping in.
 That would point to (c).
+
+---
+
+## D22 Route: fuzzy property matching with pg_trgm
+
+**Date:** 2026-10-19
+
+**Context:** INCIDENTS #1. Embeddings can't tell near-identical properties apart, so
+the KG route needs to work out which property a question is about.
+
+**Options:**
+- (a) Exact name match. 100% on this data only because the generator puts exact names
+  in every question.
+- (b) `pg_trgm` `word_similarity`, with a score threshold and a margin over the
+  runner-up. Abstain and ask otherwise.
+- (c) An LLM extracts the property name, then a lookup runs.
+
+**Chosen:** (b). Resolve if best ≥ 0.60 and best − second ≥ 0.05, otherwise answer
+"Which property do you mean?" with no LLM call.
+
+**Why:** Deterministic, typo-tolerant, lives in SQL, and costs no model call.
+`word_similarity` scores the name against its best-matching span of the question, so a
+long question doesn't dilute the score.
+
+**Measured:**
+- Exact names: best 1.00, runner-up ≤ 0.90, minimum gap 0.10.
+- Hand probes: dropped brand word 0.75, gap 0.20; typo 0.86, gap **0.07** (thin);
+  "Meridian hotel in Hamburg" 0.49, so it abstains.
+- The thresholds were chosen from these probes, so 5 golden questions (Q31–Q35) were
+  generated from *other* properties with the same kinds of damage, as a partly held-out
+  check. Result: 5/5 under the KG graph.
+- Q01–Q30 are unchanged, and headline metrics use only those, so rows stay comparable.
+
+**Revisit if:** Real names are less distinctive than synthetic ones, or the typo
+margin causes wrong matches. Then fall back to (c) for low-confidence cases only.
+
+---
+
+## D23 Validator evaluation strategy
+
+**Date:** 2026-10-19
+
+**Context:** The M2 KG graph scored 1.00 on the golden set, which is now saturated. The
+validator had nothing to catch, so its catch rate would read 0/0.
+
+**Options:**
+- (1) Harder questions.
+- (2) Validator measured with injected faults.
+- (3) Both.
+- (4) Wait for M4's staleness contradictions.
+
+**Chosen:** (3), and measure the real catch rate again in M4.
+
+**Why:** Injected faults prove the validator catches what it claims to: wrong dates,
+times, amounts, uncited values. Harder questions show whether the model errs at all
+on this data. If it doesn't, that's reported as a finding, not hidden.
+
+**Revisit if:** Not expected to change.
