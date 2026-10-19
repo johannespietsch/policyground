@@ -47,3 +47,11 @@ Every column is defined here before it has numbers (PLAN §7). Rows are appended
 | 20261019-170456 | 5c79f8f | M1 | hotels | naive-800 | bge-small-en-v1.5 | claude-haiku-5-5 | 30 | 0.76 | 1.00 | 0.24 | 0.72 | 0.00031 | 1.6 | 3.5 | rag | 0.04 | 4/5 |
 | 20261019-170614 | 5c79f8f+dirty | M2 | hotels | naive-800 | bge-small-en-v1.5 | claude-haiku-5-5 | 30 | 1.00 | 1.00 | 0.00 | 1.00 | 0.00031 | 1.8 | 2.8 | kg | 0.00 | 5/5 |
 | 20261019-171800 | 8bc8bac | M2 | hotels | naive-800 | bge-small-en-v1.5 | claude-haiku-5-5 | 30 | 1.00 | 1.00 | 0.00 | 1.00 | 0.00031 | 1.8 | 3.3 | kg | 0.00 | 5/5 | 0.00 | 0.00 |
+
+## Validator fault injection
+
+Written by `python -m policyground.eval.faults`: injected faults on the correct answers of one kg eval run, validated offline. Cells are caught/applied.
+
+| source run | answers | false pos | date+1d | time+1h | window+24h | amount+5 | no citations | invented citation | overall |
+|---|---|---|---|---|---|---|---|---|---|
+| 20261019-171800 | 29 | 0/29 | 12/13 | 23/23 | 13/13 | 4/4 | 29/29 | 29/29 | 0.99 |

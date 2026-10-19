@@ -573,3 +573,31 @@ times, amounts, uncited values. Harder questions show whether the model errs at 
 on this data. If it doesn't, that's reported as a finding, not hidden.
 
 **Revisit if:** Not expected to change.
+
+---
+
+## D24 Validator strictness: values must trace to *cited* evidence
+
+**Date:** 2026-10-19
+
+**Context:** The validator checks every date, time, EUR amount and "N hours" in an
+answer. The question is what counts as backing.
+
+**Options:**
+- (a) Strict: backing must be a cited KG fact, a cited chunk's text, or the question.
+  Deadlines count as backed when they're derived from a cited window plus a backed
+  check-in time.
+- (b) Lenient: any fact or chunk the model was shown, cited or not.
+
+**Chosen:** (a).
+
+**Why:** It enforces citation discipline, and catches D19-style lucky answers at
+validation time, not only in the eval. The cost is more rejections and retries, which is
+measurable and is exactly what the retry-cap trap needs.
+
+**Measured (first run):** 0 rejections on 30 real answers. Fault injection: 110/111
+caught, 0/29 false positives (METRICS, "Validator fault injection"). The one miss is
+INCIDENTS #3.
+
+**Revisit if:** The false-positive rate rises on harder questions, i.e. correct
+answers rejected because the model cites loosely.

@@ -68,3 +68,34 @@ already needs one).
 non-governing citations should count as a separate outcome, not as correct.
 
 **Time lost:** about 5 min.
+
+---
+
+## #3 Validator passes a wrong deadline that equals another backed value (M2, 2026-10-19)
+
+**Found by:** fault injection on run `20261019-171800`. 110/111 faults were caught; this
+is the one that wasn't.
+
+**Symptom:** Q33 (24h window, check-in 2026-11-25 at 16:00). The deadline was changed
+from "2026-11-24 at 16:00" to "2026-11-25 at 16:00", i.e. the check-in moment itself,
+and the validator still passed it.
+
+**Hypothesis:** A bug in the date-shift injection.
+
+**Actual cause:** A design limitation. The validator checks each value against a
+*set* of backed values: question dates, derived deadline dates, dates in cited chunks.
+The check-in date is in the question, so it's "backed". The validator never checks the
+*claim*: that this particular date and time is the free-cancellation deadline. Any
+wrong deadline that happens to equal some other legitimate value passes. That's most
+likely with 24h windows, where deadline + 1 day is the check-in date.
+
+**Fix:** Proposed, pending decision. Add a claim-level check for deadline phrases
+("until / by <date> at <time>"): the date-time pair must equal a deadline computed from
+cited facts. Value-level checks stay for everything else.
+
+**Prevention at scale:** Value-set validation is necessary but not sufficient.
+Validate the relation an answer asserts (this value *is* the deadline), not just that
+each value appears somewhere in the evidence. Injected-fault testing is what surfaces
+this. Real traffic would only show it as a rare wrong answer.
+
+**Time lost:** about 10 min.
