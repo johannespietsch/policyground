@@ -29,8 +29,9 @@ ingest: kg
 api:  ## http://localhost:8000
 	uv run uvicorn policyground.api:app --port 8000
 
-eval:
-	uv run python -m policyground.eval
+GRAPH ?= kg
+eval:  ## GRAPH=rag for the M1 baseline
+	uv run python -m policyground.eval --graph $(GRAPH)
 
 test:
 	uv run pytest -q

@@ -35,3 +35,11 @@ def test_abstain_flag_governs():
 def test_wrong_time_fails():
     exp = {"kind": "datetime", "value": "2026-12-17 14:00"}
     assert not is_correct(exp, "Until 2026-12-17 at 15:00.", abstain=False)
+
+
+def test_supported_needs_governing_evidence():
+    from policyground.eval.score import is_supported
+    gov = {"docs": ["brand-C5-B1"], "facts": ["kg:P042:cancel_window_hours"]}
+    assert not is_supported(gov, ["P042#0", "chain-C5#0"])  # INCIDENTS #2 (Q24)
+    assert is_supported(gov, ["brand-C5-B1#0"])
+    assert is_supported(gov, ["kg:P042:cancel_window_hours"])

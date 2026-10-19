@@ -13,13 +13,16 @@ Every column is defined here before it has numbers (PLAN §7). Rows are appended
 | commit | Short git SHA at run time, with `+dirty` if the tree had uncommitted changes. |
 | ms | Milestone the code was at. |
 | chunker / embedder | Retrieval configuration (`chunks.chunker`, `chunks.embedder`). |
-| n | Golden questions run. |
+| n | Golden questions in the headline metrics: the original 30 (Q01–Q30). The fuzzy-name questions are reported separately in `fuzzy`, so rows stay comparable. |
 | correct | Correct answers over the **answerable** questions (plain + exception), scored by `eval/score.py`. |
 | abst-acc | Abstention accuracy: share of **unanswerable** questions where `abstain=true`. |
 | false-abst | Share of **answerable** questions where the system abstained. High means over-cautious; it trades against `correct`. |
 | hit@5 | Share of answerable questions where **every** evidence doc (`golden.json` `evidence_docs`) has at least one chunk in the top-5 retrieved. Measured on the retrieval the answer node actually saw. |
 | $/q | Mean cost per question in USD, from API token usage × list price. Excludes local embedding. |
 | p50 / p95 s | End-to-end latency per question (graph invoke), in seconds. Runs sequentially. |
+| graph | `rag` = M1 retrieve → answer; `kg` = M2 route → kg_lookup → retrieve → answer (→ validate). Added 2026-10-19; rows before that are `rag`. |
+| unsupported | Share of **answerable** questions that are value-correct but cite none of the governing evidence (`golden.json` `governing`, D19). Counted inside `correct`, not subtracted from it. Added 2026-10-19. |
+| fuzzy | Correct answers on Q31–Q35: damaged property names, 4 resolvable plus 1 ambiguous, where abstaining is correct (D22). Added 2026-10-19. |
 
 **Defined now, measured from later milestones:**
 
@@ -37,6 +40,6 @@ Every column is defined here before it has numbers (PLAN §7). Rows are appended
 
 ## Eval runs
 
-| run | commit | ms | tenant | chunker | embedder | model | n | correct | abst-acc | false-abst | hit@5 | $/q | p50 s | p95 s |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| run | commit | ms | tenant | chunker | embedder | model | n | correct | abst-acc | false-abst | hit@5 | $/q | p50 s | p95 s | graph | unsupported | fuzzy |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | 20261018-113345 | 57c655c | M1 | hotels | naive-800 | bge-small-en-v1.5 | claude-haiku-5-5 | 30 | 0.76 | 1.00 | 0.24 | 0.72 | 0.00031 | 1.5 | 3.2 |

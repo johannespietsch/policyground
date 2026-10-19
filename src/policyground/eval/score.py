@@ -38,3 +38,9 @@ def is_correct(expected: dict, answer: str, abstain: bool) -> bool:
     if kind == "no_free_cancellation":
         return bool(_NO_FREE.search(answer))
     raise ValueError(kind)
+
+
+def is_supported(governing: dict, citations: list[str]) -> bool:
+    """At least one citation is a chunk of a governing doc or a governing KG fact."""
+    docs = set(governing["docs"])
+    return any(c in governing["facts"] or c.split("#")[0] in docs for c in citations)
