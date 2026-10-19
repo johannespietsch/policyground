@@ -38,10 +38,14 @@ def validate(question: str, answer: str, abstain: bool, raw_citations: list[str]
     }
 
     if abstain:
-        # Nothing to validate, but an abstention that still asserts values is the
-        # INCIDENTS #1 / Q21 pattern: flag it, don't reject (the flag governs).
-        if any(claims.values()):
-            return Verdict(True, warnings=["abstained but the text still states values"])
+        # Nothing to reject (the flag governs). But an abstention that asserts values
+        # nothing shown supports is the INCIDENTS #1 / Q21 pattern: warn. Abstentions
+        # that mention real values as context ("the only fee listed is EUR 20") are
+        # fine, so back-check leniently against everything shown, cited or not.
+        shown = _backed_values(question, facts, "\n".join(c["text"] for c in chunks))
+        stray = [f"{k} {v!r}" for k, vals in claims.items() for v in vals if v not in shown[k]]
+        if stray:
+            return Verdict(True, warnings=[f"abstained but states unbacked values: {stray}"])
         return Verdict(True)
 
     problems = []

@@ -48,6 +48,12 @@ def test_wrong_amount_rejected():
     assert v("The pet fee is EUR 40 per night.", citations=["kg:P042:pet_fee_eur"]).ok
 
 
-def test_abstain_with_values_warns_but_passes():
-    verdict = v("I can't confirm, but probably 2026-12-14.", citations=[], abstain=True)
+def test_abstain_with_unbacked_values_warns_but_passes():
+    verdict = v("I can't confirm, but probably 2026-12-20 at 09:00.", citations=[], abstain=True)
     assert verdict.ok and verdict.warnings
+
+
+def test_abstain_mentioning_real_values_does_not_warn():
+    verdict = v("No city tax info; the only per-night charge listed is the EUR 40 pet fee.",
+                citations=[], abstain=True)
+    assert verdict.ok and not verdict.warnings
