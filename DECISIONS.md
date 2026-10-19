@@ -482,3 +482,36 @@ under questioning. The hallucination hypothesis stays open and is tested in M2, 
 entity resolution; if it shows up there, it's reported as a finding.
 
 **Revisit if:** M2 shows confident wrong answers once the split chunks are reachable.
+
+---
+
+## D21 KG schema: adjacency list
+
+**Date:** 2026-10-19
+
+**Context:** D3 claims a recursive CTE resolves policy inheritance. The table layout
+decides whether that claim holds.
+
+**Options:**
+- (a) One `entity` table with `parent_id`, plus `policy_fact`. Resolve with
+  `WITH RECURSIVE`.
+- (b) Typed tables (chain/brand/property/rate_plan) with real FKs. The resolver is fixed
+  joins.
+- (c) Hybrid: an adjacency table plus typed detail tables.
+
+**Chosen:** (a). `db/migrations/002_kg.sql`, with the SQL function `resolve_policy`.
+
+**Why:** Recursion is then the natural way to walk the hierarchy, not decoration. Adding
+a level (e.g. region) needs no schema change. With (b), calling the resolver "recursive"
+would be hard to defend. Cost: type-specific fields (city, rate-plan kind) live in
+`attrs jsonb` with weaker constraints. Accepted at this size.
+
+**Details:**
+- `policy_fact` holds one current value per (entity, key), with `valid_from`, ready for
+  M4's out-of-order guard.
+- The CTE caps depth at 10 as a cycle guard.
+- Tested: the SQL resolver equals the Python resolver for all 150 properties and 302
+  rate plans, and the test was shown to fail when a brand fact is changed.
+
+**Revisit if:** Typed constraints start mattering, e.g. invalid `attrs` slipping in.
+That would point to (c).

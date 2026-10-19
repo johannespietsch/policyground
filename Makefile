@@ -1,4 +1,4 @@
-.PHONY: up down reset migrate seed ingest api eval test psql
+.PHONY: up down reset migrate seed kg ingest api eval test psql
 
 up:
 	docker compose build -q
@@ -20,7 +20,10 @@ migrate:  ## apply db/migrations in order, as the schema owner (files are idempo
 seed:
 	uv run python -m policyground.seed
 
-ingest:
+kg:  ## load data/<tenant>/kg.json into the KG tables
+	uv run python -m policyground.kg
+
+ingest: kg
 	uv run python -m policyground.ingest
 
 api:  ## http://localhost:8000
