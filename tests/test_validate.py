@@ -74,3 +74,28 @@ def test_deadline_equal_to_checkin_moment_rejected():
 def test_until_time_on_date_form():
     assert v("They can cancel free of charge until 14:00 on 2026-12-14.").ok
     assert not v("They can cancel free of charge until 14:00 on 2026-12-17.").ok
+
+
+def test_no_charge_answer_with_derived_hours_passes():
+    # Q43 false positive: "EUR 0" and "96 hours" are both legitimate here.
+    q = ("A guest booked the flexible rate at X for arrival on 2026-12-03 and cancels on "
+         "2026-11-29 at 16:00. What will they be charged?")
+    facts = [{"id": "kg:P1:cancel_window_hours", "key": "cancel_window_hours", "value": 72},
+             {"id": "kg:P1:check_in_time", "key": "check_in_time", "value": "16:00"}]
+    cites = [f["id"] for f in facts]
+    ok = "Nothing (EUR 0): cancelling 96 hours before the 16:00 check-in is inside the 72-hour window."
+    assert validate(q, ok, False, cites, facts, []).ok
+    assert not validate(q, ok.replace("96 hours", "90 hours"), False, cites, facts, []).ok
+    assert not validate(q, "They will be charged EUR 0 extra plus EUR 30.", False, cites, facts, []).ok
+
+
+def test_wrong_window_equal_to_derived_gap_rejected():
+    # Q42: the cancellation is exactly 72h before arrival, but the window is 48h.
+    q = ("A guest booked the flexible rate at X for arrival on 2026-12-03 and cancels on "
+         "2026-11-30 at 16:00. What will they be charged?")
+    facts = [{"id": "kg:P1:cancel_window_hours", "key": "cancel_window_hours", "value": 48},
+             {"id": "kg:P1:check_in_time", "key": "check_in_time", "value": "16:00"}]
+    cites = [f["id"] for f in facts]
+    good = "Nothing: free cancellation runs until 48 hours before check-in; they cancel 72 hours before."
+    assert validate(q, good, False, cites, facts, []).ok
+    assert not validate(q, good.replace("until 48", "until 72"), False, cites, facts, []).ok

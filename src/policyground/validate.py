@@ -17,10 +17,17 @@ from datetime import datetime, timedelta
 from policyground.eval import normalize
 
 _HOURS = re.compile(r"\b(\d{1,3})\s*(?:-\s*)?(?:hours?|hrs?|h)\b", re.I)
+# Hours stated AS the cancellation window. These must match a cited window; other
+# hour mentions may also be a gap derived from the question's timestamps.
+_WINDOW_HOURS = re.compile(
+    r"\b(?:until|up to|at least|no later than|within)\s+(\d{1,3})\s*(?:-\s*)?hours?"
+    r"|\b(\d{1,3})[- ]hours?\s+(?:free[- ])?(?:cancellation\s+)?window", re.I)
 # A deadline claim: "until / by / no later than <date and time>". The clause is cut
 # at the first comma or clause word, so "...72 hours before the 14:00 check-in on
 # 2026-12-17" (the arrival, not the deadline) is never read as the claimed deadline.
 _DEADLINE = re.compile(r"\b(?:until|by|no later than|up until)\b(?P<clause>[^,;()]{0,45})", re.I)
+# "EUR 0" is backed only when the answer says nothing is charged (Q43 false positive).
+_NO_CHARGE = re.compile(r"\bno (?:charge|fee|cost)|\bnothing\b|not be charged|free of charge", re.I)
 _CLAUSE_END = re.compile(r"\b(?:before|prior|hours?|after|when|which|for)\b|[.!?](?:\s|$)", re.I)
 
 
@@ -40,6 +47,7 @@ def validate(question: str, answer: str, abstain: bool, raw_citations: list[str]
         "time": normalize.times(answer),
         "eur": normalize.eur_amounts(answer),
         "hours": {int(h) for h in _HOURS.findall(answer)},
+        "window_hours": {int(a or b) for a, b in _WINDOW_HOURS.findall(answer)},
     }
 
     if abstain:
@@ -48,6 +56,7 @@ def validate(question: str, answer: str, abstain: bool, raw_citations: list[str]
         # that mention real values as context ("the only fee listed is EUR 20") are
         # fine, so back-check leniently against everything shown, cited or not.
         shown = _backed_values(question, facts, "\n".join(c["text"] for c in chunks))
+        shown["eur"].add(0.0)
         stray = [f"{k} {v!r}" for k, vals in claims.items() for v in vals if v not in shown[k]]
         if stray:
             return Verdict(True, warnings=[f"abstained but states unbacked values: {stray}"])
@@ -63,6 +72,8 @@ def validate(question: str, answer: str, abstain: bool, raw_citations: list[str]
         problems.append("no valid citations")
 
     backed = _backed_values(question, cited_facts, cited_text)
+    if _NO_CHARGE.search(answer):
+        backed["eur"].add(0.0)
     for kind, values in claims.items():
         for v in sorted(values, key=str):
             if v not in backed[kind]:
@@ -106,12 +117,20 @@ def _backed_values(question: str, cited_facts: list[dict], cited_text: str) -> d
                 deadline_times.add(dl.strftime("%H:%M"))
                 deadlines.add((dl.date().isoformat(), dl.strftime("%H:%M")))
 
+    # Hours between a moment stated in the question and the arrival ("cancels on
+    # 2026-11-29 at 16:00" -> 96 hours before a 2026-12-03 16:00 check-in).
+    q_moments = [datetime.fromisoformat(f"{d} {t}") for d in q_dates for t in normalize.times(question)]
+    arrivals = [datetime.fromisoformat(f"{d} {t}") for d in q_dates for t in checkin_times]
+    derived_hours = {int((a - m).total_seconds() // 3600) for a in arrivals for m in q_moments
+                     if a > m and (a - m).total_seconds() % 3600 == 0}
+
     return {
         "date": q_dates | deadline_dates | normalize.dates(cited_text),
         "time": (fact_values("check_in_time") | fact_values("check_out_time")
                  | normalize.times(cited_text) | normalize.times(question) | deadline_times),
         "eur": {float(v) for v in fact_values("pet_fee_eur")} | normalize.eur_amounts(cited_text),
-        "hours": windows | q_hours,
+        "hours": windows | q_hours | derived_hours,
+        "window_hours": windows,
         "deadline": deadlines,
     }
 

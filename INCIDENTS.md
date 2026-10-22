@@ -133,3 +133,31 @@ configurations that should differ is a signal to inspect the measurement first.
 are unaffected. The `hard` column only checks values, so it's unaffected too.
 
 **Time lost:** about 15 min.
+
+---
+
+## #5 Fixing a validator false positive opened a false negative (M2, 2026-10-22)
+
+**Symptom:** The validator rejected Q43's correct answer ("nothing is charged", "EUR 0",
+"96 hours before"). That cost a regenerate. After the fix (allow EUR 0 with a
+no-charge phrase, and allow hour gaps derived from the question's timestamps), fault
+injection dropped from 111/111 to 148/150.
+
+**Actual cause:** The derived-gap allowance applied to *every* hours mention. In Q42
+the guest cancels exactly 72h before arrival, so a wrong window ("free cancellation
+runs until **72** hours before", true value 48) matched the derived gap and passed.
+It's the same class as #3: a value-set check accepts a wrong claim that coincides with
+some other legitimate number.
+
+**Fix:** Hours stated *as the window* ("until / up to / at least N hours", "N-hour
+window") must match a cited window. Other hour mentions may also be derived gaps.
+Result: 149/150 caught, 0/37 false positives. The one remaining "miss" is Q43's
+mutation, "cancelling more than **96** hours before … is free", which is still a
+**true** statement for a 72h window. It's counted as uncaught but isn't a validator
+error.
+
+**Prevention at scale:** Every validator relaxation is a potential false negative.
+Re-run the fault-injection suite after each change, as here. It's what caught the
+regression within minutes.
+
+**Time lost:** about 10 min.
