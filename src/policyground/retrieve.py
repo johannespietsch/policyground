@@ -20,7 +20,7 @@ def search(tenant: str, question: str, k: int = 5,
            doc_ids: list[str] | None = None) -> list[Chunk]:
     """doc_ids restricts the search to those documents (the KG route passes the
     resolved property's lineage: property, brand and chain docs)."""
-    [qvec] = embed(embedder, [question])
+    [qvec] = embed(embedder, [question], kind="query")
     with connect("api_ro") as conn:
         rows = conn.execute(
             """SELECT doc_id || '#' || chunk_index, text, embedding <=> %s AS distance

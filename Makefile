@@ -1,4 +1,4 @@
-.PHONY: up down reset migrate seed kg ingest api eval test psql
+.PHONY: up down reset migrate seed kg ingest ingest-all api eval test psql
 
 up:
 	docker compose build -q
@@ -25,6 +25,10 @@ kg:  ## load data/<tenant>/kg.json into the KG tables
 
 ingest: kg
 	uv run python -m policyground.ingest
+
+ingest-all: kg  ## every chunker x embedder, for the M2 comparison
+	for c in naive-800 structural-v1; do for e in bge-small-en-v1.5 e5-base-v2; do \
+		uv run python -m policyground.ingest --chunker $$c --embedder $$e || exit 1; done; done
 
 api:  ## http://localhost:8000
 	uv run uvicorn policyground.api:app --port 8000
