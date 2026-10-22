@@ -94,8 +94,9 @@ def main() -> None:
         print(f"{q['id']} {'✓' if results[-1]['correct'] else '✗'} {q['type']}", flush=True)
 
     # Headline metrics use the original 30 only, so rows stay comparable (D22).
-    core = [r for r in results if not r["type"].startswith("fuzzy_")]
+    core = [r for r in results if not r["type"].startswith(("fuzzy_", "hard_"))]
     fuzzy = [r for r in results if r["type"].startswith("fuzzy_")]
+    hard = [r for r in results if r["type"].startswith("hard_")]
     answerable = [r for r in core if r["expected"]["kind"] != "abstain"]
     unanswerable = [r for r in core if r["expected"]["kind"] == "abstain"]
     lat = sorted(r["latency_s"] for r in results)
@@ -112,6 +113,8 @@ def main() -> None:
             [r for r in core if r["attempts"]], lambda r: r["attempts"] > 1 or r["forced_abstain"]),
         "fuzzy_correct": sum(r["correct"] for r in fuzzy),
         "fuzzy_n": len(fuzzy),
+        "hard_correct": sum(r["correct"] for r in hard),
+        "hard_n": len(hard),
         "cost_per_q": statistics.mean(r["cost_usd"] for r in results),
         "p50_s": statistics.median(lat),
         "p95_s": lat[min(len(lat) - 1, round(0.95 * (len(lat) - 1)))],
@@ -131,15 +134,16 @@ def main() -> None:
 
     s = summary
     fuzzy_cell = f"{s['fuzzy_correct']}/{s['fuzzy_n']}" if fuzzy else "—"
+    hard_cell = f"{s['hard_correct']}/{s['hard_n']}" if hard else "—"
     row = (f"| {run_id} | {meta['commit']} | {ms} | {args.tenant} | {CHUNKER} | {EMBEDDER} | {MODEL} "
            f"| {len(core)} | {s['correct']:.2f} | {s['abst_acc']:.2f} | {s['false_abst']:.2f} "
            f"| {s['hit5']:.2f} | {s['cost_per_q']:.5f} | {s['p50_s']:.1f} | {s['p95_s']:.1f} "
            f"| {args.graph} | {s['unsupported']:.2f} | {fuzzy_cell} "
-           f"| {_fmt(s['val_rej'])} | {_fmt(s['fallback'])} |\n")
+           f"| {_fmt(s['val_rej'])} | {_fmt(s['fallback'])} | {hard_cell} |\n")
     _append_to_table(args.root / "METRICS.md", "## Eval runs", row)
 
     print(f"\ncorrect {s['correct']:.2f}  abst-acc {s['abst_acc']:.2f}  false-abst {s['false_abst']:.2f}  "
-          f"hit@5 {s['hit5']:.2f}  unsupported {s['unsupported']:.2f}  fuzzy {fuzzy_cell}  "
+          f"hit@5 {s['hit5']:.2f}  unsupported {s['unsupported']:.2f}  fuzzy {fuzzy_cell}  hard {hard_cell}  "
           f"val-rej {_fmt(s['val_rej'])}  fallback {_fmt(s['fallback'])}  $/q {s['cost_per_q']:.5f}  p50 {s['p50_s']:.1f}s  p95 {s['p95_s']:.1f}s")
     print("by type (correct/n, hit@5):")
     for t, (c, n, h) in sorted(by_type.items()):

@@ -24,6 +24,7 @@ Every column is defined here before it has numbers (PLAN §7). Rows are appended
 | unsupported | Share of **answerable** questions that are value-correct but cite none of the governing evidence (`golden.json` `governing`, D19). Counted inside `correct`, not subtracted from it. Added 2026-10-19. |
 | val-rej | Validator rejection rate: share of headline questions that reached the answer node whose **first** answer the validator rejected (D24, strict). `—` for the rag graph, which has no validator. Added 2026-10-19. |
 | fallback | Share of those questions that needed a regenerate or ended in a validator-forced abstain. Added 2026-10-19. |
+| hard | Correct answers on Q36–Q43: month/year boundaries, a rate plan named only by ID, late-cancellation fee, cancelling inside the free window (D23). Not in the headline. Added 2026-10-22. |
 | fuzzy | Correct answers on Q31–Q35: damaged property names, 4 resolvable plus 1 ambiguous, where abstaining is correct (D22). Added 2026-10-19. |
 
 **Defined now, measured from later milestones:**
@@ -41,8 +42,8 @@ Every column is defined here before it has numbers (PLAN §7). Rows are appended
 
 ## Eval runs
 
-| run | commit | ms | tenant | chunker | embedder | model | n | correct | abst-acc | false-abst | hit@5 | $/q | p50 s | p95 s | graph | unsupported | fuzzy | val-rej | fallback |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| run | commit | ms | tenant | chunker | embedder | model | n | correct | abst-acc | false-abst | hit@5 | $/q | p50 s | p95 s | graph | unsupported | fuzzy | val-rej | fallback | hard |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | 20261018-113345 | 57c655c | M1 | hotels | naive-800 | bge-small-en-v1.5 | claude-haiku-5-5 | 30 | 0.76 | 1.00 | 0.24 | 0.72 | 0.00031 | 1.5 | 3.2 |
 | 20261019-170456 | 5c79f8f | M1 | hotels | naive-800 | bge-small-en-v1.5 | claude-haiku-5-5 | 30 | 0.76 | 1.00 | 0.24 | 0.72 | 0.00031 | 1.6 | 3.5 | rag | 0.04 | 4/5 |
 | 20261019-170614 | 5c79f8f+dirty | M2 | hotels | naive-800 | bge-small-en-v1.5 | claude-haiku-5-5 | 30 | 1.00 | 1.00 | 0.00 | 1.00 | 0.00031 | 1.8 | 2.8 | kg | 0.00 | 5/5 |

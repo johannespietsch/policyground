@@ -12,7 +12,7 @@ Expected answers are typed so scoring is deterministic (no LLM judge, PLAN §6):
 from __future__ import annotations
 
 import random
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta  # noqa: F401
 
 from policyground.seed.kg import KG
 
@@ -200,7 +200,8 @@ def build_fuzzy(kg: KG, used_ids: set[str], seed: int = 42) -> list[dict]:
     return qs
 
 
-ASKED_KEY = {"datetime": "cancel_window_hours", "eur": "pet_fee_eur"}
+ASKED_KEY = {"datetime": "cancel_window_hours", "eur": "pet_fee_eur",
+             "fee": "late_cancel_fee", "no_charge": "cancel_window_hours"}
 
 
 def add_governing(q: dict, kg: KG) -> dict:
@@ -222,9 +223,87 @@ def add_governing(q: dict, kg: KG) -> dict:
         docs = [pid]
     if kind == "no_free_cancellation":
         facts = [f"kg:{q['rate_plan_id']}:refundable"]
+    elif kind == "datetime" and q.get("rate_plan_id"):
+        facts = [f"kg:{q['rate_plan_id']}:refundable", f"kg:{pid}:cancel_window_hours"]
     elif kind == "time":
         facts = [f"kg:{pid}:{'check_out_time' if 'check_out' in q['type'] else 'check_in_time'}"]
     else:
         facts = [f"kg:{pid}:{ASKED_KEY[kind]}"]
     q["governing"] = {"docs": docs, "facts": facts}
     return q
+
+
+def build_hard(kg: KG, used_ids: set[str], seed: int = 42) -> list[dict]:
+    """8 harder questions (D23), appended after the fuzzy ones. Own RNG stream.
+
+    hard_month_boundary  deadline falls in the previous month or year
+    hard_rate_plan_id    rate plan named only by ID; the word "non-refundable" never appears
+    hard_late_fee        cancels 10 hours before check-in: what is charged?
+    hard_within_window   cancels a day before the window closes: nothing should be charged
+    """
+    rng = random.Random(f"{seed}-golden-hard")
+    props = {p["id"]: p for p in kg.properties}
+    pol = {pid: kg.resolve("property", pid) for pid in props}
+    free = sorted(set(props) - used_ids)
+    plans_by_kind = {}
+    for r in kg.rate_plans:
+        plans_by_kind.setdefault(r["kind"], []).append(r)
+
+    def take(candidates):
+        pid = rng.choice(sorted(set(candidates) & set(free)))
+        free.remove(pid)
+        return pid
+
+    def arrival(pid, d: date) -> datetime:
+        hh, mm = map(int, pol[pid]["check_in_time"]["value"].split(":"))
+        return datetime(d.year, d.month, d.day, hh, mm)
+
+    def deadline_q(qtype, pid, d, plan=None):
+        if plan:
+            text = (f"A guest booked rate plan {plan['id']} at {props[pid]['name']}, "
+                    f"checking in on {d.isoformat()}. ")
+        else:
+            text = f"A guest checks in at {props[pid]['name']} on {d.isoformat()}. "
+        return {"type": qtype, "property_id": pid, "rate_plan_id": plan["id"] if plan else None,
+                "question": text + "Until when can they cancel free of charge?",
+                "evidence_docs": [pid]}
+
+    qs = []
+    # Month / year boundaries: windows of 48h+ from the 1st of a month.
+    for d in (date(2027, 1, 1), date(2027, 3, 1)):
+        pid = take([p for p in props if pol[p]["cancel_window_hours"]["value"] >= 48])
+        q = deadline_q("hard_month_boundary", pid, d)
+        q["expected"] = {"kind": "datetime", "value": _deadline(
+            d, pol[pid]["check_in_time"]["value"], pol[pid]["cancel_window_hours"]["value"])}
+        qs.append(q)
+
+    # Rate plan named only by its ID.
+    for kind in ("non_refundable", "flexible"):
+        plan = rng.choice([r for r in plans_by_kind[kind] if r["property_id"] in free])
+        pid = plan["property_id"]
+        free.remove(pid)
+        d = CHECKIN_BASE + timedelta(days=rng.randrange(60))
+        q = deadline_q("hard_rate_plan_id", pid, d, plan)
+        q["expected"] = ({"kind": "no_free_cancellation", "value": None} if kind == "non_refundable"
+                         else {"kind": "datetime", "value": _deadline(
+                             d, pol[pid]["check_in_time"]["value"], pol[pid]["cancel_window_hours"]["value"])})
+        qs.append(q)
+
+    # Late fee vs. inside the window: the cancellation moment is given explicitly.
+    for qtype, n in (("hard_late_fee", 2), ("hard_within_window", 2)):
+        for _ in range(n):
+            pid = take(props)
+            d = CHECKIN_BASE + timedelta(days=rng.randrange(60))
+            window = pol[pid]["cancel_window_hours"]["value"]
+            hours_before = 10 if qtype == "hard_late_fee" else window + 24
+            cancel_at = arrival(pid, d) - timedelta(hours=hours_before)
+            qs.append({
+                "type": qtype, "property_id": pid,
+                "question": (f"A guest booked the flexible rate at {props[pid]['name']} for arrival on "
+                             f"{d.isoformat()} and cancels on {cancel_at.strftime('%Y-%m-%d at %H:%M')}. "
+                             "What will they be charged?"),
+                "expected": ({"kind": "fee", "value": pol[pid]["late_cancel_fee"]["value"]}
+                             if qtype == "hard_late_fee" else {"kind": "no_charge", "value": None}),
+                "evidence_docs": [pid],
+            })
+    return qs

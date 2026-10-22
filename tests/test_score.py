@@ -43,3 +43,12 @@ def test_supported_needs_governing_evidence():
     assert not is_supported(gov, ["P042#0", "chain-C5#0"])  # INCIDENTS #2 (Q24)
     assert is_supported(gov, ["brand-C5-B1#0"])
     assert is_supported(gov, ["kg:P042:cancel_window_hours"])
+
+
+def test_fee_and_no_charge():
+    fee = {"kind": "fee", "value": "first_night"}
+    assert is_correct(fee, "They will be charged the first night's rate.", abstain=False)
+    assert not is_correct(fee, "They will be charged 50% of the booking.", abstain=False)
+    none = {"kind": "no_charge", "value": None}
+    assert is_correct(none, "Nothing: they are still inside the free-cancellation window.", abstain=False)
+    assert not is_correct(none, "This is not free of charge; the first night is charged.", abstain=False)

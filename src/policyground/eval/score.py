@@ -8,6 +8,8 @@ Rules (deliberately simple; known leniency is noted):
   eur       not abstained and the expected amount appears as a EUR amount.
   no_free_cancellation  not abstained and the answer says it can't be cancelled
             free / is non-refundable.
+  fee       not abstained and the answer names the expected late-cancellation fee.
+  no_charge not abstained and the answer says nothing is charged.
   abstain   the `abstain` flag is set. The flag governs, not the wording.
 """
 
@@ -20,6 +22,16 @@ from policyground.eval import normalize
 _NO_FREE = re.compile(
     r"non-?refundable|not refundable|no refund|cannot (?:be )?cancel|can't (?:be )?cancel"
     r"|no free cancellation|not (?:be )?cancell?able", re.I)
+
+
+_FEE = {
+    "first_night": re.compile(r"first night", re.I),
+    "full_stay": re.compile(r"full (?:cost|amount|price|value)|(?:entire|whole|full) stay", re.I),
+    "50_percent": re.compile(r"\b50\s*%|\b50 percent|\bhalf\b", re.I),
+}
+_NO_CHARGE = re.compile(
+    r"no (?:charge|fee|cancellation fee|cost)|nothing|(?:won't|will not|wouldn't|would not|not) be charged"
+    r"|(?<!not )free of charge|without (?:any )?charge", re.I)
 
 
 def is_correct(expected: dict, answer: str, abstain: bool) -> bool:
@@ -37,6 +49,11 @@ def is_correct(expected: dict, answer: str, abstain: bool) -> bool:
         return float(value) in normalize.eur_amounts(answer)
     if kind == "no_free_cancellation":
         return bool(_NO_FREE.search(answer))
+    if kind == "fee":
+        others = [rx for k, rx in _FEE.items() if k != value]
+        return bool(_FEE[value].search(answer)) and not any(rx.search(answer) for rx in others)
+    if kind == "no_charge":
+        return bool(_NO_CHARGE.search(answer)) and not any(rx.search(answer) for rx in _FEE.values())
     raise ValueError(kind)
 
 

@@ -8,7 +8,7 @@ import random
 from pathlib import Path
 
 from policyground.eval.golden import build as build_golden
-from policyground.eval.golden import add_governing, build_fuzzy
+from policyground.eval.golden import add_governing, build_fuzzy, build_hard
 from policyground.seed.generate import generate
 from policyground.seed.render import render_brand, render_chain, render_property
 
@@ -43,6 +43,8 @@ def main() -> None:
     golden = build_golden(kg, manifest, seed=args.seed)
     fuzzy = build_fuzzy(kg, {q["property_id"] for q in golden}, seed=args.seed)
     golden += [{"id": f"Q{len(golden) + i:02d}", **q} for i, q in enumerate(fuzzy, start=1)]
+    hard = build_hard(kg, {q["property_id"] for q in golden if q["property_id"]}, seed=args.seed)
+    golden += [{"id": f"Q{len(golden) + i:02d}", **q} for i, q in enumerate(hard, start=1)]
     golden = [add_governing(q, kg) for q in golden]
     (kg_path.parent / "golden.json").write_text(json.dumps(golden, indent=2))
 
