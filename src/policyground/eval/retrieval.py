@@ -44,7 +44,10 @@ def main() -> None:
         combos = conn.execute("SELECT DISTINCT chunker, embedder FROM chunks WHERE tenant = %s ORDER BY 1, 2",
                               (tenant,)).fetchall()
     lineage = {q["property_id"]: property_context(tenant, q["property_id"])[2] for q in golden}
-    nr = [q for q in golden if q["expected"]["kind"] == "no_free_cancellation"]
+    manifest = json.loads(Path(f"data/{tenant}/manifest-{kg.snapshot_date}.json").read_text())
+    # Only where the property doc states the rule itself; a deferring doc can't hold both.
+    nr = [q for q in golden if q["expected"]["kind"] == "no_free_cancellation"
+          and not manifest[q["property_id"]]["cancel_by_reference"]]
 
     rows = []
     for chunker, embedder in combos:
@@ -81,7 +84,7 @@ answerable golden questions (headline, fuzzy and hard), top-5.
 | doc@5 | Every evidence doc has a chunk in the top 5 (unfiltered). Same definition as hit@5 in the eval table. Blind to chunk boundaries. |
 | fact@5 unf. | A top-5 chunk from the governing doc **contains the fact text** (e.g. "48 hours", "non-refundable", "EUR 25"). Unfiltered: the plain-RAG setting. |
 | fact@5 filt. | Same, with search restricted to the resolved property's lineage docs: what the kg graph sees. |
-| NR together | Non-refundable questions where one retrieved (filtered) chunk holds **both** the cancellation rule and the exception, i.e. the chunk boundary didn't separate them. |
+| NR together | Non-refundable questions (only those whose property doc states the cancellation rule itself) where one retrieved, filtered chunk holds **both** the rule and the exception, i.e. the chunk boundary didn't separate them. |
 
 | date | chunker | embedder | n | doc@5 | fact@5 unf. | fact@5 filt. | NR together |
 |---|---|---|---|---|---|---|---|

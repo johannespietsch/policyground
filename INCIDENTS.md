@@ -101,3 +101,35 @@ each value appears somewhere in the evidence. Injected-fault testing is what sur
 this. Real traffic would only show it as a rare wrong answer.
 
 **Time lost:** about 10 min.
+
+---
+
+## #4 Wrong governing evidence for deferring properties in hard questions (M2, 2026-10-22)
+
+**Symptom:** In the first retrieval comparison, "fact@5 filtered" was exactly 0.92 for
+all four chunker × embedder combinations. A metric that doesn't move at all when both
+the chunker and the embedder change is suspicious.
+
+**Hypothesis:** Filtered retrieval is easy enough to saturate.
+
+**Actual cause:** A measurement bug in the golden set. `add_governing` used the
+property doc as governing evidence unless the question *type* was by-reference. Three
+of the new hard questions (Q39, Q41, Q42) were about properties whose docs only say
+"standard {brand} terms apply". Their fact text lives in the brand doc, so no
+retrieval could ever "hit" them. The same bug left those questions' `evidence_docs`
+without the brand doc.
+
+**Fix:** The governing doc is now derived from the render manifest for every
+cancellation-related question (`stating_doc`), and evidence paths are extended to it.
+A new test asserts that every answerable question's fact text appears in its governing
+doc. Q01–Q35 were unchanged, verified byte-for-byte. The four affected rows in METRICS
+are kept and marked superseded, and the comparison was re-run.
+
+**Prevention at scale:** Test the eval's own ground truth (the evidence must contain
+the answer), not just the system under test. A metric that is flat across
+configurations that should differ is a signal to inspect the measurement first.
+
+**Impact on earlier results:** The eval table's headline (Q01–Q30) and `unsupported`
+are unaffected. The `hard` column only checks values, so it's unaffected too.
+
+**Time lost:** about 15 min.

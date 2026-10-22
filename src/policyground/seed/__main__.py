@@ -45,7 +45,7 @@ def main() -> None:
     golden += [{"id": f"Q{len(golden) + i:02d}", **q} for i, q in enumerate(fuzzy, start=1)]
     hard = build_hard(kg, {q["property_id"] for q in golden if q["property_id"]}, seed=args.seed)
     golden += [{"id": f"Q{len(golden) + i:02d}", **q} for i, q in enumerate(hard, start=1)]
-    golden = [add_governing(q, kg) for q in golden]
+    golden = [add_governing(q, kg, manifest) for q in golden]
     (kg_path.parent / "golden.json").write_text(json.dumps(golden, indent=2))
 
     n_docs = len(kg.chains) + len(kg.brands) + len(kg.properties)

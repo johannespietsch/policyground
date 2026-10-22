@@ -58,3 +58,22 @@ Written by `python -m policyground.eval.faults`: injected faults on the correct 
 |---|---|---|---|---|---|---|---|---|---|
 | 20261019-171800 | 29 | 0/29 | 12/13 | 23/23 | 13/13 | 4/4 | 29/29 | 29/29 | 0.99 |
 | 20261019-171800 | 29 | 0/29 | 13/13 | 23/23 | 13/13 | 4/4 | 29/29 | 29/29 | 1.00 |
+
+## Retrieval: hit@5 per chunker × embedder
+
+Written by `python -m policyground.eval.retrieval`. Retrieval only, no LLM. Over all
+answerable golden questions (headline, fuzzy and hard), top-5.
+
+| Column | Definition |
+|---|---|
+| doc@5 | Every evidence doc has a chunk in the top 5 (unfiltered). Same definition as hit@5 in the eval table. Blind to chunk boundaries. |
+| fact@5 unf. | A top-5 chunk from the governing doc **contains the fact text** (e.g. "48 hours", "non-refundable", "EUR 25"). Unfiltered: the plain-RAG setting. |
+| fact@5 filt. | Same, with search restricted to the resolved property's lineage docs: what the kg graph sees. |
+| NR together | Non-refundable questions where one retrieved (filtered) chunk holds **both** the cancellation rule and the exception, i.e. the chunk boundary didn't separate them. |
+
+| date | chunker | embedder | n | doc@5 | fact@5 unf. | fact@5 filt. | NR together |
+|---|---|---|---|---|---|---|---|
+| 2026-10-22 ⚠ superseded (INCIDENTS #4) | naive-800 | bge-small-en-v1.5 | 37 | 0.73 | 0.65 | 0.92 | 0/3 |
+| 2026-10-22 ⚠ superseded (INCIDENTS #4) | naive-800 | e5-base-v2 | 37 | 0.89 | 0.81 | 0.92 | 0/3 |
+| 2026-10-22 ⚠ superseded (INCIDENTS #4) | structural-v1 | bge-small-en-v1.5 | 37 | 0.89 | 0.84 | 0.92 | 2/3 |
+| 2026-10-22 ⚠ superseded (INCIDENTS #4) | structural-v1 | e5-base-v2 | 37 | 0.95 | 0.89 | 0.92 | 2/3 |

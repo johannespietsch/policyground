@@ -53,3 +53,20 @@ def test_unanswerable_topics_never_appear_in_corpus(world):
     corpus = "\n".join(docs.values()).lower()
     for word in ("parking", "shuttle", "minimum age", "city tax", "late check-out"):
         assert word not in corpus, word
+
+
+def test_governing_doc_states_the_fact():
+    """The governing doc must contain the fact text, or 'unsupported' and fact@5 are wrong."""
+    from pathlib import Path
+    import json as _json
+    from policyground.eval.retrieval import surface_text
+    from policyground.seed.kg import KG
+
+    if not Path("data/hotels/golden.json").exists():
+        pytest.skip("make seed")
+    kg = KG.load(Path("data/hotels/kg.json"))
+    for q in _json.loads(Path("data/hotels/golden.json").read_text()):
+        if q["expected"]["kind"] == "abstain":
+            continue
+        text = "\n".join(Path(f"corpus/hotels/2026-10-16/{d}.md").read_text() for d in q["governing"]["docs"])
+        assert surface_text(q, kg).lower() in text.lower(), q["id"]

@@ -204,23 +204,41 @@ ASKED_KEY = {"datetime": "cancel_window_hours", "eur": "pet_fee_eur",
              "fee": "late_cancel_fee", "no_charge": "cancel_window_hours"}
 
 
-def add_governing(q: dict, kg: KG) -> dict:
+CANCEL_KINDS = ("datetime", "no_charge", "fee")
+
+
+def stating_doc(kg: KG, manifest: dict, property_id: str) -> str:
+    """The doc that actually states a property's cancellation terms: its own doc,
+    or (if it defers, D14) the brand doc, or the chain doc if the brand defers too."""
+    if not manifest[property_id]["cancel_by_reference"]:
+        return property_id
+    prop = kg._by_id("properties", property_id)
+    brand = kg._by_id("brands", prop["brand_id"])
+    if kg.resolve("brand", brand["id"])["cancel_window_hours"]["source_type"] == "brand":
+        return f"brand-{brand['id']}"
+    return f"chain-{brand['chain_id']}"
+
+
+def add_governing(q: dict, kg: KG, manifest: dict) -> dict:
     """The evidence that actually establishes the answer (D19). An answer that is
     value-correct but cites none of it scores as `unsupported`.
 
-    docs:  the document that states the value. For by-reference questions that is
-           the brand doc (2-hop) or the chain doc (3-hop), not the property doc
-           that defers.
+    docs:  the document that states the value. For a property that defers its
+           cancellation terms, that is the brand doc (2-hop) or the chain doc
+           (3-hop), not the property doc that defers.
     facts: the KG fact ID for the asked key, on the property (or the rate plan).
     """
     kind, pid = q["expected"]["kind"], q["property_id"]
     if kind == "abstain":
         q["governing"] = {"docs": [], "facts": []}
         return q
-    if q["type"].startswith("exception_by_reference"):
-        docs = [q["evidence_docs"][-1]]
-    else:
-        docs = [pid]
+    docs = [stating_doc(kg, manifest, pid) if kind in CANCEL_KINDS else pid]
+    if docs[0] not in q["evidence_docs"]:
+        # Deferring property: evidence is the whole path down to the stating doc.
+        prop = kg._by_id("properties", pid)
+        brand = kg._by_id("brands", prop["brand_id"])
+        path = [pid, f"brand-{brand['id']}", f"chain-{brand['chain_id']}"]
+        q["evidence_docs"] = path[:path.index(docs[0]) + 1]
     if kind == "no_free_cancellation":
         facts = [f"kg:{q['rate_plan_id']}:refundable"]
     elif kind == "datetime" and q.get("rate_plan_id"):
