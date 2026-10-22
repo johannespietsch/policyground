@@ -12,6 +12,7 @@ import anthropic
 from pydantic import BaseModel
 
 MODEL = "claude-haiku-5-5"
+REQUEST_TIMEOUT_S = 60.0
 # USD per million tokens, for prompts up to 100K tokens (cached pricing table, 2026-10-06).
 PRICE_IN_PER_MTOK = 0.10
 PRICE_OUT_PER_MTOK = 0.50
@@ -48,7 +49,10 @@ _client: anthropic.Anthropic | None = None
 def client() -> anthropic.Anthropic:
     global _client
     if _client is None:
-        _client = anthropic.Anthropic()  # reads ANTHROPIC_API_KEY; only this process has it
+        # Explicit timeout: the SDK default is 10 min x 3 attempts, so one stalled request
+        # could hang a request (or an eval) for half an hour. 60s is generous for a
+        # ~2k-token prompt; the SDK still retries 429/5xx/timeouts twice.
+        _client = anthropic.Anthropic(timeout=REQUEST_TIMEOUT_S)  # reads ANTHROPIC_API_KEY
     return _client
 
 

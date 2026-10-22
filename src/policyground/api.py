@@ -8,7 +8,7 @@ from pydantic import BaseModel
 
 load_dotenv()
 
-from policyground.graph import build  # noqa: E402  (needs env loaded first)
+from policyground.graph import ask, build  # noqa: E402  (needs env loaded first)
 
 app = FastAPI(title="PolicyGround")
 graph = build()
@@ -29,5 +29,5 @@ class AskResponse(BaseModel):
 
 @app.post("/ask", response_model=AskResponse)
 def ask(req: AskRequest) -> AskResponse:
-    state = graph.invoke({"tenant": req.tenant, "question": req.question})
+    state = ask(graph, req.tenant, req.question)
     return AskResponse(**{k: state[k] for k in AskResponse.model_fields})

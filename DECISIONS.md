@@ -649,3 +649,27 @@ The NR-together column isolates the first effect; doc@5 mixes both.
 
 **Revisit if:** The write-up needs the two effects separated. Then add (b) as
 `structural-noheader` (cheap, no API cost).
+
+---
+
+## D27 Loop and request backstops
+
+**Date:** 2026-10-22
+
+**Context:** INCIDENTS #6. With the retry cap removed, only LangGraph's default
+recursion limit (10007 in 1.2.16) would stop a regenerate loop. The Anthropic SDK's
+default timeout is 10 min, with 2 retries.
+
+**Options:**
+- (a) Rely on the retry cap alone.
+- (b) Add an explicit step limit and a client timeout as independent backstops.
+
+**Chosen:** (b). `RECURSION_LIMIT = 20` via `graph.ask()`, which converts hitting it
+into an abstention, plus a 60s request timeout.
+
+**Why:** A bug in one guard shouldn't turn into a $2.50, 3-hour question. Both
+backstops are cheap and tested, and they don't affect the normal path (≤ 8 steps,
+a ~2–5s request).
+
+**Revisit if:** Prompts grow enough that 60s becomes tight. Then switch to streaming,
+not a longer timeout.

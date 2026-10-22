@@ -66,7 +66,7 @@ def main() -> None:
     results = []
     for q in golden:
         t0 = time.perf_counter()
-        state = graph.invoke({"tenant": args.tenant, "question": q["question"]})
+        state = graph_mod.ask(graph, args.tenant, q["question"])
         latency = time.perf_counter() - t0
         retrieved_docs = [c["id"].split("#")[0] for c in state["chunks"]]
         results.append({

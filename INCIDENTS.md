@@ -161,3 +161,48 @@ Re-run the fault-injection suite after each change, as here. It's what caught th
 regression within minutes.
 
 **Time lost:** about 10 min.
+
+---
+
+## #6 Retry-cost trap (INDUCED), and LangGraph's real recursion limit (M2, 2026-10-22)
+
+**Planned trap (PLAN M2):** An uncapped regenerate-on-reject loop blows up cost per
+question.
+
+**Not reproduced on real data:** Of the 4 rejections in run `20261022-200858`, every one
+recovered on the first regenerate. On this data an uncapped loop would have cost
+nothing extra.
+
+**Induced demonstration** (`python -m policyground.eval.retry_demo`): The validator was
+replaced with one that always rejects (a persistent false positive), on Q01.
+- Cap = 1: 2 LLM calls, $0.00092, then a validator-forced abstention.
+- Cap removed, bounded at 60 steps for the demo: 29 calls, $0.01468, **16×** and
+  rising linearly (about 2.4k input + 0.5k output tokens per call, about 2.7s each).
+
+**The real finding: my assumed backstop didn't exist.** I expected LangGraph's
+recursion limit (25 in older versions) to stop the loop. In the installed LangGraph
+1.2.16, `DEFAULT_RECURSION_LIMIT` is **10007**. An unbounded run was observed passing
+38 LLM calls in 115s before I killed it. Projected to the default limit, that's about
+5,000 calls, **about $2.53 and over 3 hours for one question**. Only the
+application-level cap stood between a validator bug and that bill.
+
+**A second finding on the way:** The first demo attempts appeared to hang. A
+`faulthandler` stack dump showed the process blocked inside `messages.parse`, waiting
+for response headers. The Anthropic SDK's default timeout is 10 minutes, retried twice,
+so one stalled request can block a caller for about 30 minutes. (A Docker Desktop
+auto-update that stopped Postgres mid-run muddied the first diagnosis.)
+
+**Fix:**
+- An explicit client timeout of 60s (`llm.REQUEST_TIMEOUT_S`). The SDK still retries
+  429/5xx/timeouts twice.
+- An independent step backstop: `graph.RECURSION_LIMIT = 20` (the longest legitimate
+  path is 8 steps), applied in `graph.ask()`. Hitting it becomes an abstention with
+  `recursion_limited=True`, not a crash. Tested.
+- The retry cap stays at 1.
+
+**Prevention at scale:** Bound every loop at two independent levels (the app's retry
+cap and the framework's step limit), and alert on cost per question, not just totals.
+Never rely on a framework default you haven't checked in the installed version. Set
+explicit timeouts on every network client.
+
+**Time lost:** about 45 min, mostly the "hang" diagnosis.

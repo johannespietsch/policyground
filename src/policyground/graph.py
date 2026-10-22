@@ -10,6 +10,7 @@ from __future__ import annotations
 import os
 from typing import TypedDict
 
+from langgraph.errors import GraphRecursionError
 from langgraph.graph import END, START, StateGraph
 
 from policyground.kg.lookup import match_property, property_context
@@ -20,6 +21,10 @@ from policyground.validate import validate as run_validator
 TOP_K = 5
 # Retry cap (PLAN M2 trap: uncapped regenerate-on-reject blows up cost per question).
 MAX_REGENERATE = int(os.environ.get("POLICYGROUND_MAX_REGENERATE", "1"))
+# Second, independent backstop (INCIDENTS #6). LangGraph 1.x's default recursion limit
+# is 10007 steps, not 25: without this, a bug in the retry cap could loop ~5000 LLM
+# calls on one question. The longest legitimate kg path is 8 steps.
+RECURSION_LIMIT = 20
 
 
 class State(TypedDict, total=False):
@@ -170,6 +175,18 @@ def build_kg():
                             {"done": END, "regenerate": "answer", "abstain": "abstain_unvalidated"})
     g.add_edge("abstain_unvalidated", END)
     return g.compile()
+
+
+def ask(graph, tenant: str, question: str) -> State:
+    """Invoke with the step backstop. Hitting it is a bug, not an answer: abstain."""
+    try:
+        return graph.invoke({"tenant": tenant, "question": question},
+                            config={"recursion_limit": RECURSION_LIMIT})
+    except GraphRecursionError:
+        return {"tenant": tenant, "question": question, "chunks": [], "facts": [],
+                "answer": "I can't confirm this from the policy data (step limit reached).",
+                "citations": [], "raw_citations": [], "abstain": True, "forced_abstain": True,
+                "input_tokens": 0, "output_tokens": 0, "attempts": 0, "recursion_limited": True}
 
 
 GRAPHS = {"rag": build_rag, "kg": build_kg}
