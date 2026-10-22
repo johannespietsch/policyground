@@ -17,6 +17,11 @@ from datetime import datetime, timedelta
 from policyground.eval import normalize
 
 _HOURS = re.compile(r"\b(\d{1,3})\s*(?:-\s*)?(?:hours?|hrs?|h)\b", re.I)
+# A deadline claim: "until / by / no later than <date and time>". The clause is cut
+# at the first comma or clause word, so "...72 hours before the 14:00 check-in on
+# 2026-12-17" (the arrival, not the deadline) is never read as the claimed deadline.
+_DEADLINE = re.compile(r"\b(?:until|by|no later than|up until)\b(?P<clause>[^,;()]{0,45})", re.I)
+_CLAUSE_END = re.compile(r"\b(?:before|prior|hours?|after|when|which|for)\b|[.!?](?:\s|$)", re.I)
 
 
 @dataclass
@@ -62,7 +67,24 @@ def validate(question: str, answer: str, abstain: bool, raw_citations: list[str]
         for v in sorted(values, key=str):
             if v not in backed[kind]:
                 problems.append(f"{kind} {v!r} is not backed by any cited evidence")
+    # Claim-level check (INCIDENTS #3): a stated deadline must BE a computed deadline,
+    # not merely consist of values that appear somewhere in the evidence.
+    for d, t in _deadline_claims(answer):
+        if (d, t) not in backed["deadline"]:
+            problems.append(f"deadline {d} {t} doesn't follow from the cited window and check-in time")
     return Verdict(not problems, problems)
+
+
+def _deadline_claims(answer: str) -> set[tuple[str, str]]:
+    claims = set()
+    for m in _DEADLINE.finditer(answer):
+        clause = m["clause"]
+        if end := _CLAUSE_END.search(clause):
+            clause = clause[:end.start()]
+        dates, times = normalize.dates(clause), normalize.times(clause)
+        if len(dates) == 1 and len(times) == 1:
+            claims.add((dates.pop(), times.pop()))
+    return claims
 
 
 def _backed_values(question: str, cited_facts: list[dict], cited_text: str) -> dict[str, set]:
@@ -74,7 +96,7 @@ def _backed_values(question: str, cited_facts: list[dict], cited_text: str) -> d
     checkin_times = fact_values("check_in_time") | _checkin_times_in(cited_text)
     q_dates = normalize.dates(question)
 
-    deadline_dates, deadline_times = set(), set()
+    deadline_dates, deadline_times, deadlines = set(), set(), set()
     for d in q_dates:
         for t in checkin_times:
             arrival = datetime.fromisoformat(f"{d} {t}")
@@ -82,6 +104,7 @@ def _backed_values(question: str, cited_facts: list[dict], cited_text: str) -> d
                 dl = arrival - timedelta(hours=w)
                 deadline_dates.add(dl.date().isoformat())
                 deadline_times.add(dl.strftime("%H:%M"))
+                deadlines.add((dl.date().isoformat(), dl.strftime("%H:%M")))
 
     return {
         "date": q_dates | deadline_dates | normalize.dates(cited_text),
@@ -89,6 +112,7 @@ def _backed_values(question: str, cited_facts: list[dict], cited_text: str) -> d
                  | normalize.times(cited_text) | normalize.times(question) | deadline_times),
         "eur": {float(v) for v in fact_values("pet_fee_eur")} | normalize.eur_amounts(cited_text),
         "hours": windows | q_hours,
+        "deadline": deadlines,
     }
 
 

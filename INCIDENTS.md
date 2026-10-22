@@ -89,9 +89,11 @@ The check-in date is in the question, so it's "backed". The validator never chec
 wrong deadline that happens to equal some other legitimate value passes. That's most
 likely with 24h windows, where deadline + 1 day is the check-in date.
 
-**Fix:** Proposed, pending decision. Add a claim-level check for deadline phrases
-("until / by <date> at <time>"): the date-time pair must equal a deadline computed from
-cited facts. Value-level checks stay for everything else.
+**Fix (2026-10-22):** A claim-level check. Each deadline phrase ("until / by / no later
+than <date> <time>", cut at "before / prior / hours / …" so the restated arrival isn't
+read as the claim) must equal a deadline computed from the cited window and check-in
+time. Value-level checks stay for everything else. Fault injection re-run on the same
+answers: 111/111 caught, 0/29 false positives.
 
 **Prevention at scale:** Value-set validation is necessary but not sufficient.
 Validate the relation an answer asserts (this value *is* the deadline), not just that

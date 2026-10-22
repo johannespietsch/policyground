@@ -55,3 +55,4 @@ Written by `python -m policyground.eval.faults`: injected faults on the correct 
 | source run | answers | false pos | date+1d | time+1h | window+24h | amount+5 | no citations | invented citation | overall |
 |---|---|---|---|---|---|---|---|---|---|
 | 20261019-171800 | 29 | 0/29 | 12/13 | 23/23 | 13/13 | 4/4 | 29/29 | 29/29 | 0.99 |
+| 20261019-171800 | 29 | 0/29 | 13/13 | 23/23 | 13/13 | 4/4 | 29/29 | 29/29 | 1.00 |

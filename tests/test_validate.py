@@ -57,3 +57,20 @@ def test_abstain_mentioning_real_values_does_not_warn():
     verdict = v("No city tax info; the only per-night charge listed is the EUR 40 pet fee.",
                 citations=[], abstain=True)
     assert verdict.ok and not verdict.warnings
+
+
+def test_deadline_equal_to_checkin_moment_rejected():
+    # INCIDENTS #3: 24h window; the broken deadline equals the check-in moment.
+    q = "A guest checks in at X on 2026-11-25. Until when can they cancel free of charge?"
+    facts = [{"id": "kg:P1:cancel_window_hours", "key": "cancel_window_hours", "value": 24},
+             {"id": "kg:P1:check_in_time", "key": "check_in_time", "value": "16:00"}]
+    cites = [f["id"] for f in facts]
+    good = "Free cancellation until 2026-11-24 at 16:00, 24 hours before the 16:00 check-in on 2026-11-25."
+    bad = good.replace("until 2026-11-24", "until 2026-11-25")
+    assert validate(q, good, False, cites, facts, []).ok
+    assert not validate(q, bad, False, cites, facts, []).ok
+
+
+def test_until_time_on_date_form():
+    assert v("They can cancel free of charge until 14:00 on 2026-12-14.").ok
+    assert not v("They can cancel free of charge until 14:00 on 2026-12-17.").ok
