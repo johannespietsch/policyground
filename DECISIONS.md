@@ -601,3 +601,51 @@ INCIDENTS #3.
 
 **Revisit if:** The false-positive rate rises on harder questions, i.e. correct
 answers rejected because the model cites loosely.
+
+---
+
+## D25 Second embedder: e5-base-v2
+
+**Date:** 2026-10-22
+
+**Context:** M2 compares two embedders. The second should be more capable than
+bge-small, and 768-dim to exercise D16's mixed-dimension column.
+
+**Options:**
+- (a) e5-base-v2.
+- (b) bge-base-en-v1.5.
+- (c) nomic-embed-text-v1.5.
+
+**Chosen:** (a).
+
+**Why:** A different model family from bge, so the comparison says more than "bigger
+model, same recipe". No `trust_remote_code`: nomic would execute Python code from its
+model repo at load time, which is a supply-chain risk to defend for no measured gain.
+e5 needs `query: ` / `passage: ` prefixes, now handled per model in `embed.py`.
+
+**Revisit if:** Retrieval quality becomes the bottleneck again.
+
+---
+
+## D26 Structural chunker: sections, booking terms merged, title header
+
+**Date:** 2026-10-22
+
+**Context:** The plan says "one chunk per policy section, exceptions kept with their
+rule".
+
+**Options:**
+- (a) Sections, with Cancellation and Rate plans merged, and every chunk prefixed with
+  the doc's title/ID line.
+- (b) The same without the header.
+- (c) Both, as separate chunkers.
+
+**Chosen:** (a), as `structural-v1`.
+
+**Why:** The header also targets INCIDENTS #1 (wrong-property retrieval). Accepted
+trade-off: the comparison measures both effects together, so the gain over naive can't
+be split between "kept the exception with its rule" and "chunk names its property".
+The NR-together column isolates the first effect; doc@5 mixes both.
+
+**Revisit if:** The write-up needs the two effects separated. Then add (b) as
+`structural-noheader` (cheap, no API cost).

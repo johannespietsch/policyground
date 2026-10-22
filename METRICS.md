@@ -77,3 +77,7 @@ answerable golden questions (headline, fuzzy and hard), top-5.
 | 2026-10-22 ⚠ superseded (INCIDENTS #4) | naive-800 | e5-base-v2 | 37 | 0.89 | 0.81 | 0.92 | 0/3 |
 | 2026-10-22 ⚠ superseded (INCIDENTS #4) | structural-v1 | bge-small-en-v1.5 | 37 | 0.89 | 0.84 | 0.92 | 2/3 |
 | 2026-10-22 ⚠ superseded (INCIDENTS #4) | structural-v1 | e5-base-v2 | 37 | 0.95 | 0.89 | 0.92 | 2/3 |
+| 2026-10-22 | naive-800 | bge-small-en-v1.5 | 37 | 0.68 | 0.65 | 1.00 | 0/2 |
+| 2026-10-22 | naive-800 | e5-base-v2 | 37 | 0.84 | 0.84 | 1.00 | 0/2 |
+| 2026-10-22 | structural-v1 | bge-small-en-v1.5 | 37 | 0.84 | 0.84 | 1.00 | 2/2 |
+| 2026-10-22 | structural-v1 | e5-base-v2 | 37 | 0.86 | 0.89 | 1.00 | 2/2 |
