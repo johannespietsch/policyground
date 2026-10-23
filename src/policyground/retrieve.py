@@ -17,9 +17,10 @@ class Chunk:
 
 def search(tenant: str, question: str, k: int = 5,
            chunker: str = "naive-800", embedder: str = "bge-small-en-v1.5",
-           doc_ids: list[str] | None = None) -> list[Chunk]:
+           doc_ids: list[str] | None = None, snapshot_date: str | None = None) -> list[Chunk]:
     """doc_ids restricts the search to those documents (the KG route passes the
-    resolved property's lineage: property, brand and chain docs)."""
+    resolved property's lineage: property, brand and chain docs). snapshot_date
+    defaults to the latest snapshot loaded for this chunker x embedder."""
     [qvec] = embed(embedder, [question], kind="query")
     with connect("api_ro") as conn:
         rows = conn.execute(
@@ -27,9 +28,10 @@ def search(tenant: str, question: str, k: int = 5,
                FROM chunks
                WHERE tenant = %s AND chunker = %s AND embedder = %s
                  AND (%s::text[] IS NULL OR doc_id = ANY(%s::text[]))
-                 AND snapshot_date = (SELECT max(snapshot_date) FROM chunks
-                                      WHERE tenant = %s AND chunker = %s AND embedder = %s)
+                 AND snapshot_date = COALESCE(%s::date, (SELECT max(snapshot_date) FROM chunks
+                                      WHERE tenant = %s AND chunker = %s AND embedder = %s))
                ORDER BY distance LIMIT %s""",
-            (qvec, tenant, chunker, embedder, doc_ids, doc_ids, tenant, chunker, embedder, k),
+            (qvec, tenant, chunker, embedder, doc_ids, doc_ids, snapshot_date,
+             tenant, chunker, embedder, k),
         ).fetchall()
     return [Chunk(*r) for r in rows]

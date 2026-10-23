@@ -17,6 +17,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from policyground import graph as graph_mod  # noqa: E402
+from policyground.eval.metrics_md import append_to_table  # noqa: E402
 from policyground.eval.score import is_correct, is_supported  # noqa: E402
 from policyground.llm import MODEL, PRICE_IN_PER_MTOK, PRICE_OUT_PER_MTOK  # noqa: E402
 
@@ -30,18 +31,6 @@ def git_sha() -> str:
     dirty = subprocess.run(["git", "status", "--porcelain", "--", ".", ":!METRICS.md"],
                            capture_output=True, text=True).stdout.strip()
     return sha + ("+dirty" if dirty else "")
-
-
-def _append_to_table(path: Path, section: str, row: str) -> None:
-    """Insert `row` after the last table row of `section` (other tables follow it)."""
-    lines = path.read_text().splitlines(keepends=True)
-    start = next(i for i, line in enumerate(lines) if line.startswith(section))
-    end = start + 1
-    while end < len(lines) and not (lines[end].startswith("## ") and end > start):
-        end += 1
-    last_row = max(i for i in range(start, end) if lines[i].startswith("|"))
-    lines.insert(last_row + 1, row)
-    path.write_text("".join(lines))
 
 
 def _rate(rows, pred) -> float | None:
@@ -140,7 +129,7 @@ def main() -> None:
            f"| {s['hit5']:.2f} | {s['cost_per_q']:.5f} | {s['p50_s']:.1f} | {s['p95_s']:.1f} "
            f"| {args.graph} | {s['unsupported']:.2f} | {fuzzy_cell} "
            f"| {_fmt(s['val_rej'])} | {_fmt(s['fallback'])} | {hard_cell} |\n")
-    _append_to_table(args.root / "METRICS.md", "## Eval runs", row)
+    append_to_table(args.root / "METRICS.md", "## Eval runs", row)
 
     print(f"\ncorrect {s['correct']:.2f}  abst-acc {s['abst_acc']:.2f}  false-abst {s['false_abst']:.2f}  "
           f"hit@5 {s['hit5']:.2f}  unsupported {s['unsupported']:.2f}  fuzzy {fuzzy_cell}  hard {hard_cell}  "

@@ -15,6 +15,7 @@ import re
 from datetime import date, timedelta
 from pathlib import Path
 
+from policyground.eval.metrics_md import append_to_table
 from policyground.validate import validate
 
 ISO = re.compile(r"\b(\d{4})-(\d{2})-(\d{2})\b")
@@ -100,10 +101,9 @@ def main() -> None:
                  "correct answers of one kg eval run, validated offline. Cells are caught/applied.\n\n"
                  f"| source run | answers | false pos | {' | '.join(cols)} | overall |\n"
                  f"|{'---|' * (len(cols) + 4)}\n")
-    text += (f"| {run['run']} | {len(base)} | {false_pos}/{len(base)} | "
-             + " | ".join(f"{c}/{n}" for c, n in rows.values())
-             + f" | {caught / total:.2f} |\n")
     metrics.write_text(text)
+    append_to_table(metrics, header, f"| {run['run']} | {len(base)} | {false_pos}/{len(base)} | "
+                    + " | ".join(f"{c}/{n}" for c, n in rows.values()) + f" | {caught / total:.2f} |")
 
 
 if __name__ == "__main__":

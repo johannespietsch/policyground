@@ -52,3 +52,12 @@ def test_fee_and_no_charge():
     none = {"kind": "no_charge", "value": None}
     assert is_correct(none, "Nothing: they are still inside the free-cancellation window.", abstain=False)
     assert not is_correct(none, "This is not free of charge; the first night is charged.", abstain=False)
+
+
+def test_append_to_table_targets_its_own_section(tmp_path):
+    from policyground.eval.metrics_md import append_to_table
+    p = tmp_path / "M.md"
+    p.write_text("## A\n\n| a |\n|---|\n| 1 |\n\n## B\n\n| b |\n|---|\n| 2 |\n")
+    append_to_table(p, "## A", "| 1b |")
+    append_to_table(p, "## B", "| 2b |")
+    assert p.read_text() == "## A\n\n| a |\n|---|\n| 1 |\n| 1b |\n\n## B\n\n| b |\n|---|\n| 2 |\n| 2b |\n"
