@@ -1,4 +1,4 @@
-.PHONY: up down reset migrate seed kg ingest ingest-all api eval test psql
+.PHONY: airflow-db airflow-init airflow up down reset migrate seed kg ingest ingest-all api eval test psql
 
 up:
 	docker compose build -q
@@ -42,3 +42,27 @@ test:
 
 psql:
 	docker compose exec postgres psql -U pgadmin -d policyground
+
+# ---- Airflow (M3, D28): its own venv, home and metadata database.
+# Config is via AIRFLOW__<SECTION>__<KEY> env vars, so nothing in airflow/home needs editing.
+AIRFLOW_ENV = AIRFLOW_HOME=$(CURDIR)/airflow/home \
+	AIRFLOW__CORE__DAGS_FOLDER=$(CURDIR)/airflow/dags \
+	AIRFLOW__CORE__PLUGINS_FOLDER=$(CURDIR)/airflow/plugins \
+	AIRFLOW__CORE__LOAD_EXAMPLES=False \
+	AIRFLOW__CORE__EXECUTOR=LocalExecutor \
+	AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow_meta:airflow_meta@localhost:5433/airflow \
+	POLICYGROUND_ROOT=$(CURDIR)
+AIRFLOW = $(AIRFLOW_ENV) airflow/.venv/bin/airflow
+
+airflow-db:  ## create the airflow role + database on an existing volume (idempotent)
+	docker compose exec -T postgres psql -q -U pgadmin -d postgres -c \
+	  "DO \$$\$$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname='airflow_meta') THEN CREATE ROLE airflow_meta LOGIN PASSWORD 'airflow_meta'; END IF; END \$$\$$;"
+	docker compose exec -T postgres psql -q -U pgadmin -d postgres -tc \
+	  "SELECT 1 FROM pg_database WHERE datname='airflow'" | grep -q 1 || \
+	  docker compose exec -T postgres psql -q -U pgadmin -d postgres -c "CREATE DATABASE airflow OWNER airflow_meta"
+
+airflow-init: airflow-db  ## create / upgrade Airflow's metadata tables
+	$(AIRFLOW) db migrate
+
+airflow:  ## scheduler + dag-processor + triggerer + API server/UI on http://localhost:8080
+	$(AIRFLOW) standalone

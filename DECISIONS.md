@@ -673,3 +673,32 @@ a ~2–5s request).
 
 **Revisit if:** Prompts grow enough that 60s becomes tight. Then switch to streaming,
 not a longer timeout.
+
+---
+
+## D28 Airflow integration (M3)
+
+**Date:** 2026-10-23
+
+**Context:** Airflow 3.3.2 (current, 2026-09-17) has to run the ingestion pipeline. It
+must be installed against its own constraints file (D9), so it can't share the
+project's venv.
+
+**Chosen:**
+1. **Tasks call our code as subprocesses** (`uv run python -m policyground.…`), not
+   `ExternalPythonOperator`. This keeps the two dependency sets fully separate. Each
+   step is a CLI we can also run by hand. Accepted cost: Airflow only sees exit codes
+   and logs, not Python objects.
+2. **Airflow metadata in its own `airflow` database on the project Postgres**, owned
+   by a separate `airflow_meta` role, not SQLite. More realistic, allows the
+   LocalExecutor to run tasks in parallel, and keeps Airflow's tables out of the app's
+   schema and roles.
+3. **A real Deadline Alert**, with the explicit caveat that Deadline Alerts are
+   documented as *experimental* in 3.3.2 (introduced in 3.1). If it proves unusable:
+   task timeouts plus a failure callback, the PLAN M3 fallback.
+
+**Why:** Each choice keeps a boundary that's easy to explain (dependency sets,
+databases, roles) at little cost for a single-machine demo.
+
+**Revisit if:** Subprocess overhead or opaque failures make debugging slow. Then use
+`ExternalPythonOperator` against the project venv.

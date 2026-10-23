@@ -2,12 +2,15 @@ services:
   postgres:
     build: ./db
     image: policyground-postgres
+    # Comes back after a Docker Desktop restart or update (it stopped twice: INCIDENTS #6).
+    restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_ADMIN_USER:-pgadmin}
       POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:-pgadmin}
       POSTGRES_DB: policyground
       INGEST_RW_PASSWORD: ${INGEST_RW_PASSWORD:-ingest_rw}
       API_RO_PASSWORD: ${API_RO_PASSWORD:-api_ro}
+      AIRFLOW_META_PASSWORD: ${AIRFLOW_META_PASSWORD:-airflow_meta}
     ports:
       - "5433:5432"
     volumes:

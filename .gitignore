@@ -3,3 +3,5 @@ __pycache__/
 .env
 data/
 corpus/
+airflow/.venv/
+airflow/home/
