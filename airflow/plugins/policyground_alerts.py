@@ -24,8 +24,12 @@ async def deadline_missed(**kwargs) -> None:
     record = {
         "fired_at": datetime.now(timezone.utc).isoformat(),
         "dag_id": _get(dag_run, "dag_id"),
-        "run_id": _get(dag_run, "run_id"),
+        "run_id": _get(dag_run, "run_id") or _get(dag_run, "id"),
         "deadline_time": _get(deadline, "deadline_time"),
+        # Field names in the callback context aren't documented in detail for this
+        # experimental feature; record what we actually get (INCIDENTS / M3 notes).
+        "context_keys": sorted(context) if isinstance(context, dict) else type(context).__name__,
+        "dag_run_fields": sorted(dag_run) if isinstance(dag_run, dict) else type(dag_run).__name__,
         **kwargs,
     }
     path = Path(os.environ.get("AIRFLOW_HOME", ".")) / "deadline_alerts.log"

@@ -72,5 +72,8 @@ airflow-check:  ## parse the DAGs the way the dag-processor does; list import er
 	$(AIRFLOW) dags list-import-errors
 	$(AIRFLOW) tasks list ingest_policies
 
+airflow-cli:  ## run any airflow CLI command: make airflow-cli ARGS="dags list"
+	@$(AIRFLOW) $(ARGS)
+
 airflow:  ## scheduler + dag-processor + triggerer + API server/UI on http://localhost:8080
 	$(AIRFLOW) standalone
