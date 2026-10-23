@@ -702,3 +702,54 @@ databases, roles) at little cost for a single-machine demo.
 
 **Revisit if:** Subprocess overhead or opaque failures make debugging slow. Then use
 `ExternalPythonOperator` against the project venv.
+
+---
+
+## D29 DAG task granularity and the DAG's eval task
+
+**Date:** 2026-10-23
+
+**Context:** The M1 `ingest` command chunked, embedded and wrote in one process. Airflow
+retries per task, and tasks are separate processes that can't share memory.
+
+**Options:**
+- Granularity: (a) `chunk → embed → upsert`, passing staging files; (b) one task.
+- Eval: (a) retrieval-only (free, deterministic); (b) the full LLM eval on every run.
+
+**Chosen:** (a) and (a).
+- Steps hand data through `data/<tenant>/staging/<date>/<chunker>__<embedder>/`
+  (`chunks.jsonl`, `embeddings.npy`), not XCom, which is meant for small values.
+- The DAG's `eval` task writes retrieval metrics plus the slice's row count to the
+  `eval_runs` table. The LLM eval stays manual (`make eval`).
+
+**Why:** A failed embed retries alone. Demonstrated: three simulated 429s, then success;
+`chunk` didn't re-run. Waits were 22/44/77s, exponential with Airflow's jitter. A
+deterministic, free eval suits a scheduled job. Whether the LLM eval should run on a
+schedule is revisited in M4, once the noise band is measured.
+
+**Revisit if:** M4's drift detection needs the LLM eval on a schedule.
+
+---
+
+## D30 Idempotent upsert: overwrite the slice, plus a unique key
+
+**Date:** 2026-10-23
+
+**Context:** INCIDENTS #7. Re-running the backfill doubled every chunk.
+
+**Options:**
+- (a) Delete the (tenant, snapshot, chunker, embedder) slice and insert it again in
+  one transaction, plus a unique key as a safety net.
+- (b) A unique key with `ON CONFLICT DO UPDATE`.
+- (c) A key on `chunk_hash` with `ON CONFLICT DO NOTHING`.
+
+**Chosen:** (a). Migration 005 dedups the existing rows and adds `chunks_slice_key`.
+
+**Why:** It's the standard "insert overwrite partition" pattern. One transaction means
+readers never see a half-written slice. Unlike (b), it leaves no orphan rows when a doc
+yields fewer chunks. Unlike (c), it never keeps a stale version next to a changed one,
+which is the failure M4 is about. The unique key turns any future regression into a
+loud error, not silent duplication.
+
+**Revisit if:** Slices grow large enough that delete-and-insert is slow. Then use
+partitioned tables and swap partitions.
