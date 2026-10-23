@@ -1,4 +1,4 @@
-.PHONY: airflow-db airflow-init airflow up down reset migrate seed kg ingest ingest-all api eval test psql
+.PHONY: airflow-db airflow-init airflow-check airflow up down reset migrate seed kg ingest ingest-all api eval test psql
 
 up:
 	docker compose build -q
@@ -51,7 +51,10 @@ AIRFLOW_ENV = AIRFLOW_HOME=$(CURDIR)/airflow/home \
 	AIRFLOW__CORE__LOAD_EXAMPLES=False \
 	AIRFLOW__CORE__EXECUTOR=LocalExecutor \
 	AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow_meta:airflow_meta@localhost:5433/airflow \
-	POLICYGROUND_ROOT=$(CURDIR)
+	POLICYGROUND_ROOT=$(CURDIR) \
+	PATH=$(CURDIR)/airflow/.venv/bin:$$PATH
+# standalone spawns its components as `airflow ...` from PATH, hence the venv on PATH.
+# Tasks still run `uv run python ...`, which resolves the project's own venv.
 AIRFLOW = $(AIRFLOW_ENV) airflow/.venv/bin/airflow
 
 airflow-db:  ## create the airflow role + database on an existing volume (idempotent)
@@ -63,6 +66,11 @@ airflow-db:  ## create the airflow role + database on an existing volume (idempo
 
 airflow-init: airflow-db  ## create / upgrade Airflow's metadata tables
 	$(AIRFLOW) db migrate
+
+airflow-check:  ## parse the DAGs the way the dag-processor does; list import errors
+	$(AIRFLOW) dags reserialize 2>&1 | tail -2
+	$(AIRFLOW) dags list-import-errors
+	$(AIRFLOW) tasks list ingest_policies
 
 airflow:  ## scheduler + dag-processor + triggerer + API server/UI on http://localhost:8080
 	$(AIRFLOW) standalone
