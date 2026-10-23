@@ -1,4 +1,4 @@
-.PHONY: topics airflow-db airflow-init airflow-check airflow up down reset migrate seed kg ingest ingest-all api eval test psql
+.PHONY: mutate consumer drift topics airflow-db airflow-init airflow-check airflow up down reset migrate seed kg ingest ingest-all api eval test psql
 
 up:
 	docker compose build -q
@@ -11,6 +11,12 @@ down:
 
 reset:  ## drop the database volume; init scripts re-run on next `make up`
 	docker compose down -v
+
+mutate:  ## partner changes ~10% of policies on DATE: new state, snapshot, events (M4)
+	uv run python -m policyground.stream.mutate --date $(DATE)
+
+consumer:  ## apply policy.changed events to the KG (runs until stopped)
+	uv run python -m policyground.stream.consumer
 
 topics:  ## policy.changed with 3 partitions, so per-key ordering actually matters (D32)
 	docker compose exec -T redpanda rpk topic create policy.changed -p 3 -r 1 2>&1 | grep -v "TOPIC_ALREADY_EXISTS" || true

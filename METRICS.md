@@ -109,3 +109,24 @@ Notable runs of `ingest_policies`, recorded by hand from the metadata DB
 | 2026-10-23 | manual 10-18, fail_first_tries=3 | forced 429s | success | embed: 3 (waits 22s / 44s / 77s); chunk not re-run | — |
 | 2026-10-23 | backfill 10-12…10-16, reprocess=completed | re-run, naive upsert (INCIDENTS #7) | 5 × success; **630 rows/snapshot, 315 dups** | 0 | **0.62 / 0.92** |
 | 2026-10-23 | backfill 10-12…10-16, reprocess=completed | re-run, idempotent upsert (D30) | 5 × success; 315 rows/snapshot, 0 dups | 0 | 0.68 / 1.00 |
+
+## Drift (M4)
+
+Written by `python -m policyground.drift` (D35). One row per measurement.
+
+| Column | Definition |
+|---|---|
+| at | UTC time of the measurement. |
+| mutation | The `make mutate` date whose changes are measured (= the new snapshot's date). |
+| phase | `baseline`: changes published but not yet applied, so KG and vectors are both still old (the noise band comes from here). `stale`: KG updated by the consumer, vectors still old (the staleness window). `refreshed`: the DAG has ingested the new snapshot. |
+| graph / n | rag (M1 baseline graph) or kg (production graph); number of probe questions (about exactly the mutated properties). |
+| truth | Which answers are scored as correct: `expected_old` (before the change) or `expected` (after). |
+| runs / mean | Correct share per run, and the mean. |
+| band | Noise band = mean ± 2σ of the baseline runs, per graph. Anything inside it is noise, not drift. |
+| verdict | `DRIFT (below band)` if the mean falls below the band, otherwise `within band`. |
+| disagreement | Share (and count) of properties whose KG value (cancellation window, pet fee) differs from what the latest production chunks state. |
+| staleness | Minutes from the KG applying the mutation's facts to that snapshot's chunks being ingested (`open` = not yet). |
+
+| at | mutation | phase | graph | n | truth | runs | mean | band | verdict | disagreement | staleness |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 2026-10-23 14:13 |  | pre-mutation | — | — | — | — | — | — | — | 0.000 (0) |  |
