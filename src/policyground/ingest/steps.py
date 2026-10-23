@@ -6,8 +6,10 @@ one step without redoing the others.
   embed   chunks.jsonl                         -> staging/.../embeddings.npy
   upsert  chunks.jsonl + embeddings.npy        -> chunks table (as ingest_rw)
 
-Embedding is local, so there are no real rate limits. FAIL_RATE (0..1) simulates a
-429 on the embed step to exercise Airflow's retries (PLAN M3).
+Embedding is local, so there are no real rate limits. Two ways to simulate a 429 on
+the embed step and exercise Airflow's retries (PLAN M3):
+  FAIL_RATE=p           each attempt fails with probability p (the plan's knob; random)
+  FAIL_FIRST_TRIES=n    attempts 1..n fail, using TRY_NUMBER from Airflow (repeatable)
 """
 
 from __future__ import annotations
@@ -54,8 +56,11 @@ def chunk(args) -> None:
 
 def embed_step(args) -> None:
     fail_rate = float(os.environ.get("FAIL_RATE", "0"))
-    if random.random() < fail_rate:
-        raise SimulatedRateLimit(f"simulated HTTP 429 from embedding provider (FAIL_RATE={fail_rate})")
+    fail_first = int(os.environ.get("FAIL_FIRST_TRIES", "0"))
+    try_number = int(os.environ.get("TRY_NUMBER", "1"))
+    if try_number <= fail_first or random.random() < fail_rate:
+        raise SimulatedRateLimit(f"simulated HTTP 429 from embedding provider "
+                                 f"(try {try_number}, FAIL_FIRST_TRIES={fail_first}, FAIL_RATE={fail_rate})")
     out = staging_dir(args.root, args.tenant, args.date, args.chunker, args.embedder)
     rows = [json.loads(line) for line in open(out / "chunks.jsonl")]
     vectors = np.stack(embed(args.embedder, [r["text"] for r in rows]))

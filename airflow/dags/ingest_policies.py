@@ -32,7 +32,9 @@ with DAG(
         "chunker": Param("naive-800", type="string"),
         "embedder": Param("bge-small-en-v1.5", type="string"),
         "fail_rate": Param(0.0, type="number", minimum=0, maximum=1,
-                           description="Probability of a simulated 429 on embed"),
+                           description="Probability of a simulated 429 on each embed attempt"),
+        "fail_first_tries": Param(0, type="integer", minimum=0,
+                                  description="Embed attempts 1..n fail with a simulated 429"),
     },
     default_args={
         "retries": 4,
@@ -61,8 +63,10 @@ with DAG(
     embed = BashOperator(
         task_id="embed",
         bash_command=f"{RUN} policyground.ingest.steps embed {ARGS}",
-        env={"FAIL_RATE": "{{ params.fail_rate }}"},
-        append_env=True,  # keep PATH etc.; only add FAIL_RATE
+        env={"FAIL_RATE": "{{ params.fail_rate }}",
+             "FAIL_FIRST_TRIES": "{{ params.fail_first_tries }}",
+             "TRY_NUMBER": "{{ ti.try_number }}"},
+        append_env=True,  # keep PATH etc.; only add these
     )
     upsert = BashOperator(task_id="upsert", bash_command=f"{RUN} policyground.ingest.steps upsert {ARGS}")
     evaluate = BashOperator(
