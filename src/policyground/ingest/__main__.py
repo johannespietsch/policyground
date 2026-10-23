@@ -10,6 +10,7 @@ import argparse
 import hashlib
 from pathlib import Path
 
+from policyground.config import PRODUCTION
 from policyground.db import connect
 from policyground.ingest.chunkers import CHUNKERS
 from policyground.ingest.embed import EMBEDDERS, embed
@@ -19,8 +20,8 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--tenant", default="hotels")
     ap.add_argument("--date", default="2026-10-16")
-    ap.add_argument("--chunker", default="naive-800", choices=CHUNKERS)
-    ap.add_argument("--embedder", default="bge-small-en-v1.5", choices=EMBEDDERS)
+    ap.add_argument("--chunker", default=PRODUCTION["chunker"], choices=CHUNKERS)
+    ap.add_argument("--embedder", default=PRODUCTION["embedder"], choices=EMBEDDERS)
     ap.add_argument("--root", type=Path, default=Path("."))
     args = ap.parse_args()
 

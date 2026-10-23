@@ -13,6 +13,7 @@ from typing import TypedDict
 from langgraph.errors import GraphRecursionError
 from langgraph.graph import END, START, StateGraph
 
+from policyground.config import BASELINE
 from policyground.kg.lookup import match_property, property_context
 from policyground.llm import answer_question, answer_with_facts
 from policyground.retrieve import search
@@ -77,7 +78,8 @@ def _answer_update(state: State, result) -> State:
 # ---- rag graph (M1)
 
 def rag_retrieve(state: State) -> State:
-    return {"chunks": _chunks(search(state["tenant"], state["question"], k=TOP_K))}
+    # Pinned to the M1 configuration (config.BASELINE) so baseline rows stay comparable.
+    return {"chunks": _chunks(search(state["tenant"], state["question"], k=TOP_K, **BASELINE))}
 
 
 def rag_answer(state: State) -> State:

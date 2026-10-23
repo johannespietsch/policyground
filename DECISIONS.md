@@ -753,3 +753,29 @@ loud error, not silent duplication.
 
 **Revisit if:** Slices grow large enough that delete-and-insert is slow. Then use
 partitioned tables and swap partitions.
+
+---
+
+## D31 Production retrieval: structural-v1 × e5-base-v2
+
+**Date:** 2026-10-23
+
+**Context:** The app and the DAG still used the M1 baseline (naive-800 × bge-small). The
+M2 comparison: KG-filtered fact@5 was 1.00 under every configuration. For plain RAG,
+structural × e5 was best (fact@5 0.89 vs 0.65), and only the structural chunker keeps
+the non-refundable exception with its rule (2/2 vs 0/2).
+
+**Options:** (a) Keep the baseline. (b) Switch production to structural-v1 × e5-base-v2.
+
+**Chosen:** (b). `policyground.config` holds `PRODUCTION` (kg graph, API, ingest, DAG
+default) and `BASELINE` (pinned for `GRAPH=rag`, so earlier rows stay comparable).
+
+**Why:** It doesn't change answer correctness through the KG, but it improves what gets
+cited. The chunk the model cites now contains the rule *and* its exception, and names
+its property. That makes citations better evidence for a support agent, and it makes the
+`unsupported` check and the validator's cited-text backing more meaningful.
+
+**Cost:** e5-base is about 2× slower to embed than bge-small (768-dim). That shows in
+ingest time and in per-question query embedding (measured in the next eval row).
+
+**Revisit if:** Query latency matters more than citation quality.

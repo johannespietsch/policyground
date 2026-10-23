@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from policyground.config import PRODUCTION
 from policyground.db import connect
 from policyground.ingest.embed import embed
 
@@ -16,7 +17,7 @@ class Chunk:
 
 
 def search(tenant: str, question: str, k: int = 5,
-           chunker: str = "naive-800", embedder: str = "bge-small-en-v1.5",
+           chunker: str = PRODUCTION["chunker"], embedder: str = PRODUCTION["embedder"],
            doc_ids: list[str] | None = None, snapshot_date: str | None = None) -> list[Chunk]:
     """doc_ids restricts the search to those documents (the KG route passes the
     resolved property's lineage: property, brand and chain docs). snapshot_date

@@ -17,12 +17,13 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from policyground import graph as graph_mod  # noqa: E402
+from policyground.config import BASELINE, PRODUCTION  # noqa: E402
 from policyground.eval.metrics_md import append_to_table  # noqa: E402
 from policyground.eval.score import is_correct, is_supported  # noqa: E402
 from policyground.llm import MODEL, PRICE_IN_PER_MTOK, PRICE_OUT_PER_MTOK  # noqa: E402
 
 MILESTONE = {"rag": "M1", "kg": "M2"}
-CHUNKER, EMBEDDER = "naive-800", "bge-small-en-v1.5"
+RETRIEVAL = {"rag": BASELINE, "kg": PRODUCTION}  # what each graph retrieves with
 
 
 def git_sha() -> str:
@@ -116,6 +117,7 @@ def main() -> None:
     out = args.root / "data" / args.tenant / "eval" / f"run-{run_id}.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     ms = MILESTONE[args.graph]
+    CHUNKER, EMBEDDER = RETRIEVAL[args.graph]["chunker"], RETRIEVAL[args.graph]["embedder"]
     from policyground.graph import MAX_REGENERATE
     meta = {"max_regenerate": MAX_REGENERATE, "run": run_id, "commit": git_sha(), "milestone": ms, "graph": args.graph, "tenant": args.tenant,
             "chunker": CHUNKER, "embedder": EMBEDDER, "model": MODEL, "n": len(core)}

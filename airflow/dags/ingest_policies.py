@@ -29,8 +29,10 @@ with DAG(
     max_active_runs=1,  # each run loads the embedding model; keep it to one at a time
     params={
         "tenant": Param("hotels", type="string"),
-        "chunker": Param("naive-800", type="string"),
-        "embedder": Param("bge-small-en-v1.5", type="string"),
+        # Mirrors policyground.config.PRODUCTION (D31). Duplicated on purpose: the DAG
+        # runs in Airflow's venv and must not import the app package (D28).
+        "chunker": Param("structural-v1", type="string"),
+        "embedder": Param("e5-base-v2", type="string"),
         "fail_rate": Param(0.0, type="number", minimum=0, maximum=1,
                            description="Probability of a simulated 429 on each embed attempt"),
         "fail_first_tries": Param(0, type="integer", minimum=0,

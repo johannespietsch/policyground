@@ -24,6 +24,7 @@ from pathlib import Path
 
 import numpy as np
 
+from policyground.config import PRODUCTION
 from policyground.db import connect
 from policyground.ingest.chunkers import CHUNKERS
 from policyground.ingest.embed import EMBEDDERS, embed
@@ -100,8 +101,8 @@ def main() -> None:
     ap.add_argument("step", choices=["chunk", "embed", "upsert"])
     ap.add_argument("--tenant", default="hotels")
     ap.add_argument("--date", required=True)
-    ap.add_argument("--chunker", default="naive-800", choices=CHUNKERS)
-    ap.add_argument("--embedder", default="bge-small-en-v1.5", choices=EMBEDDERS)
+    ap.add_argument("--chunker", default=PRODUCTION["chunker"], choices=CHUNKERS)
+    ap.add_argument("--embedder", default=PRODUCTION["embedder"], choices=EMBEDDERS)
     ap.add_argument("--root", type=Path, default=Path(os.environ.get("POLICYGROUND_ROOT", ".")))
     args = ap.parse_args()
     {"chunk": chunk, "embed": embed_step, "upsert": upsert}[args.step](args)
