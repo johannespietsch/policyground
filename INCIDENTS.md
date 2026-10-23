@@ -240,7 +240,11 @@ metric.
 Retries, `airflow tasks clear`, and backfill reprocessing all re-execute `upsert` with
 the same inputs.
 
-**Fix:** See D30.
+**Fix (D30):** The upsert overwrites its slice (delete plus insert in one transaction),
+and a unique key `chunks_slice_key` makes a duplicate an error. Migration 005 removed the
+existing duplicates. The same reprocessing backfill re-run: 315 rows/snapshot, doc@5
+back to 0.68, fact@5 filtered back to 1.00. `eval_runs` shows clean → broken → fixed for
+every day.
 
 **Prevention at scale:** Every task must be safe to run twice with the same logical
 date. Make that a constraint the database enforces (a unique key), not a convention.

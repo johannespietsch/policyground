@@ -85,3 +85,25 @@ answerable golden questions (headline, fuzzy and hard), top-5.
 | 20261022-200858 | 37 | 0/37 | 20/20 | 31/31 | 19/21 | 4/4 | 37/37 | 37/37 | 0.99 |
 | 20261022-200858 | 37 | 0/37 | 20/20 | 31/31 | 19/21 | 4/4 | 37/37 | 37/37 | 0.99 |
 | 20261022-200858 | 37 | 0/37 | 20/20 | 31/31 | 20/21 | 4/4 | 37/37 | 37/37 | 0.99 |
+
+## Airflow DAG runs (M3)
+
+Notable runs of `ingest_policies`, recorded by hand from the metadata DB
+(`task_instance_history`) and `eval_runs`.
+
+| Column | Definition |
+|---|---|
+| runs | Which DAG runs (logical dates, run type). |
+| purpose | What the run demonstrates. |
+| result | Final run state; row counts per snapshot afterwards. |
+| retries | Task retries in the run (the "DAG retry count" metric), by task, with waits between attempts. |
+| eval (doc@5 / fact@5 filt.) | From `eval_runs`, per snapshot. |
+
+| date | runs | purpose | result | retries | eval (doc@5 / fact@5 filt.) |
+|---|---|---|---|---|---|
+| 2026-10-23 | backfill 10-12…10-16 | first load | 5 × success; 315 rows/snapshot, 0 dups | 0 | 0.68 / 1.00 |
+| 2026-10-23 | scheduled 10-23 | no snapshot that day | success with every task skipped (sensor soft-fail at 6 min); deadline alert at +4 min | 0 | — |
+| 2026-10-23 | manual 10-17, fail_rate=0.6 | random 429 | success; the 429 didn't trigger (p = 0.4) | 0 | — |
+| 2026-10-23 | manual 10-18, fail_first_tries=3 | forced 429s | success | embed: 3 (waits 22s / 44s / 77s); chunk not re-run | — |
+| 2026-10-23 | backfill 10-12…10-16, reprocess=completed | re-run, naive upsert (INCIDENTS #7) | 5 × success; **630 rows/snapshot, 315 dups** | 0 | **0.62 / 0.92** |
+| 2026-10-23 | backfill 10-12…10-16, reprocess=completed | re-run, idempotent upsert (D30) | 5 × success; 315 rows/snapshot, 0 dups | 0 | 0.68 / 1.00 |
