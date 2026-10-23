@@ -23,6 +23,7 @@ class PolicyFact:
     key: str
     value: str | int | bool
     valid_from: str  # ISO date
+    version: int = 1  # partner-assigned, increases with every change to (entity, key) (D34)
 
 
 @dataclass

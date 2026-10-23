@@ -1,15 +1,20 @@
-.PHONY: airflow-db airflow-init airflow-check airflow up down reset migrate seed kg ingest ingest-all api eval test psql
+.PHONY: topics airflow-db airflow-init airflow-check airflow up down reset migrate seed kg ingest ingest-all api eval test psql
 
 up:
 	docker compose build -q
 	docker compose up -d --wait
 	$(MAKE) migrate
+	$(MAKE) topics
 
 down:
 	docker compose down
 
 reset:  ## drop the database volume; init scripts re-run on next `make up`
 	docker compose down -v
+
+topics:  ## policy.changed with 3 partitions, so per-key ordering actually matters (D32)
+	docker compose exec -T redpanda rpk topic create policy.changed -p 3 -r 1 2>&1 | grep -v "TOPIC_ALREADY_EXISTS" || true
+	docker compose exec -T redpanda rpk topic describe policy.changed -p | head -5
 
 migrate:  ## apply db/migrations in order, as the schema owner (files are idempotent)
 	@for f in db/migrations/*.sql; do \

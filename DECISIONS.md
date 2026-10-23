@@ -779,3 +779,84 @@ its property. That makes citations better evidence for a support agent, and it m
 ingest time and in per-question query embedding (measured in the next eval row).
 
 **Revisit if:** Query latency matters more than citation quality.
+
+---
+
+## D32 Kafka client: confluent-kafka
+
+**Date:** 2026-10-23
+
+**Options:** (a) confluent-kafka; (b) aiokafka; (c) kafka-python.
+
+**Chosen:** (a), pinned to 2.16.0. The broker is Redpanda v26.2.4 (Kafka-compatible,
+single binary).
+
+**Why:** It wraps librdkafka, the de-facto production client, with correct
+consumer-group, manual-commit and keyed-partitioner semantics. Its synchronous API suits
+a simple consume → write → commit loop.
+
+**Revisit if:** The consumer has to live inside an async service.
+
+---
+
+## D33 Mutations: property-level, and ground truth moves with them
+
+**Date:** 2026-10-23
+
+**Options:** (a) Property-level changes only. (b) Property and brand level.
+
+**Chosen:** (a). `make mutate` plays the partner system:
+- It changes ~10% of properties (cancel window and/or pet fee) in the partner's state
+  (`kg.json`).
+- It publishes one `policy.changed` event per fact, keyed by `property_id`.
+- It writes the next day's snapshot from the new state, for the DAG.
+
+Golden answers are re-derived from the new truth, so a stale answer counts as a wrong
+answer.
+
+**Why:** It keeps "key = property_id" (PLAN M4) coherent. A brand-level change would fan
+out to ~10 properties and need a different partition key. That's a known extension,
+not built.
+
+**Revisit if:** We want the fan-out case, keyed by brand, with downstream re-resolution.
+
+---
+
+## D34 Out-of-order guard: a per-fact version number
+
+**Date:** 2026-10-23
+
+**Context:** `policy_fact.valid_from` is a DATE, so two changes on the same day would tie.
+
+**Options:**
+- (a) A partner-assigned, monotonically increasing version per (entity, key).
+- (b) A `changed_at` timestamp.
+- (c) `valid_from` as is.
+
+**Chosen:** (a). The event carries `version`, `policy_fact` stores it, and the upsert
+applies only when the incoming version is greater than the stored one.
+
+**Why:** Exact and independent of clocks: no ties, no skew. It's the standard
+optimistic-concurrency pattern, and it makes the consumer idempotent under re-delivery
+(an equal version is a no-op).
+
+**Revisit if:** The partner can't supply versions. Then use (b) plus `event_id` dedup.
+
+---
+
+## D35 Drift measurement: probe set plus a noise band
+
+**Date:** 2026-10-23
+
+**Options:** (a) A probe set about exactly the mutated properties, LLM eval, noise band
+from 3 runs. (b) Only the re-derived golden set.
+
+**Chosen:** (a). The noise band is mean ± 2σ over 3 runs on an unchanged corpus.
+Nothing inside it counts as drift.
+
+**Why:** Only ~3 golden questions would touch mutated properties, too few for a drop to
+clear the noise band. A probe set aims the measurement at the change. Cost: about $0.01
+per run.
+
+**Revisit if:** The noise band is so wide that 3 runs are too few. Then use more runs or
+more probes.

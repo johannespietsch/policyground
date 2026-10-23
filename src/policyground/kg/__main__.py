@@ -31,12 +31,17 @@ def load(kg: KG) -> tuple[int, int]:
                    name = EXCLUDED.name, attrs = EXCLUDED.attrs""",
             [(kg.tenant, i, t, parent, name, Jsonb(attrs)) for i, t, parent, name, attrs in entities],
         )
+        # Version-guarded like the stream consumer (D34): a bulk reload of an older
+        # kg.json can never roll back a newer value that arrived as an event.
         cur.executemany(
-            """INSERT INTO policy_fact (tenant, entity_id, key, value, valid_from)
-               VALUES (%s, %s, %s, %s, %s)
+            """INSERT INTO policy_fact (tenant, entity_id, key, value, valid_from, version)
+               VALUES (%s, %s, %s, %s, %s, %s)
                ON CONFLICT (tenant, entity_id, key) DO UPDATE
-               SET value = EXCLUDED.value, valid_from = EXCLUDED.valid_from""",
-            [(kg.tenant, f.entity_id, f.key, Jsonb(f.value), f.valid_from) for f in kg.policy_facts],
+               SET value = EXCLUDED.value, valid_from = EXCLUDED.valid_from,
+                   version = EXCLUDED.version, updated_at = now()
+               WHERE EXCLUDED.version > policy_fact.version""",
+            [(kg.tenant, f.entity_id, f.key, Jsonb(f.value), f.valid_from, f.version)
+             for f in kg.policy_facts],
         )
     return len(entities), len(kg.policy_facts)
 
