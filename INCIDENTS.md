@@ -294,3 +294,39 @@ a natural Prometheus alert for M5.
 measured. Test it with a run that must miss (no snapshot), as here.
 
 **Time lost:** about 20 min.
+
+---
+
+## #9 Out-of-order events overwrite newer values (PLANNED trap, M4, 2026-10-23)
+
+**Planned (PLAN M4):** Re-delivered or unkeyed events apply out of order, so an old
+policy overwrites a newer one. Demonstrated on an isolated tenant
+(`python -m policyground.stream.order_demo`), so the real KG was never corrupted.
+
+**Results:**
+- **Stale replay, keyed** (v1, v2, v3, then v2 again, as after a broker re-delivery or a
+  late producer). Last-write-wins ends at **v2**; version-guarded ends at v3.
+  *Keying doesn't help here*: the late event is in the same partition, just later.
+- **No key.** v1–v5 spread across 3 partitions (librdkafka's keyless partitioner is
+  random/sticky, not strict round-robin). One consumer reads the partitions in no
+  guaranteed relative order. Last-write-wins was wrong in **3/8 trials** (final
+  versions 2, 1, 1); version-guarded in 0/8.
+
+**Actual cause:** Kafka orders events only *within* a partition. A keyless producer
+scatters one entity's events across partitions, and at-least-once delivery re-delivers
+events even within one. Last-write-wins assumes an order the transport doesn't give.
+
+**Fix (D34, in the real consumer):** Two layers.
+1. Key by `property_id`, so one property's events share a partition and stay in order.
+2. A per-fact `version` guard in the upsert
+   (`WHERE EXCLUDED.version > policy_fact.version`), so late or duplicate events are
+   no-ops whatever the transport does.
+
+The offset is committed only after the DB commit (at-least-once), which the guard makes
+safe.
+
+**Prevention at scale:** Never rely on delivery order for correctness. Make every
+consumer write idempotent and monotonic, with a version from the source of truth, not a
+local clock. Keying is for throughput and locality; the guard is for correctness.
+
+**Time lost:** 0 (planned).

@@ -325,3 +325,35 @@ def build_hard(kg: KG, used_ids: set[str], seed: int = 42) -> list[dict]:
                 "evidence_docs": [pid],
             })
     return qs
+
+
+def refresh_expected(q: dict, kg: KG, manifest: dict) -> dict:
+    """Re-derive a question's expected answer from the KG's CURRENT state (D33).
+    The question text stays fixed; only the answer (and governing evidence) moves."""
+    import re
+
+    from policyground.eval import normalize
+
+    kind, pid = q["expected"]["kind"], q.get("property_id")
+    if not pid or kind in ("abstain", "no_free_cancellation"):
+        return q
+    pol = kg.resolve("property", pid)
+    window, checkin = pol["cancel_window_hours"]["value"], pol["check_in_time"]["value"]
+    if kind == "datetime":
+        [d] = normalize.dates(q["question"])
+        q["expected"]["value"] = _deadline(date.fromisoformat(d), checkin, window)
+    elif kind == "time":
+        q["expected"]["value"] = pol["check_out_time" if "check_out" in q["type"] or
+                                     "latest check-out" in q["question"] else "check_in_time"]["value"]
+    elif kind == "eur":
+        q["expected"]["value"] = pol["pet_fee_eur"]["value"]
+    elif kind in ("fee", "no_charge"):
+        # "for arrival on D and cancels on D2 at HH:MM": inside the window -> nothing charged.
+        m = re.search(r"arrival on (\d{4}-\d{2}-\d{2}) and cancels on (\d{4}-\d{2}-\d{2}) at (\d{2}:\d{2})",
+                      q["question"])
+        arrival = datetime.fromisoformat(f"{m[1]} {checkin}")
+        hours_before = (arrival - datetime.fromisoformat(f"{m[2]} {m[3]}")).total_seconds() / 3600
+        q["expected"] = ({"kind": "no_charge", "value": None} if hours_before >= window
+                         else {"kind": "fee", "value": pol["late_cancel_fee"]["value"]})
+    q["evidence_docs"] = [pid]  # add_governing extends the path for deferring docs
+    return add_governing(q, kg, manifest)
