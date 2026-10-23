@@ -4,7 +4,7 @@ one step without redoing the others.
 
   chunk   corpus/<tenant>/<date>/*.md          -> staging/.../chunks.jsonl
   embed   chunks.jsonl                         -> staging/.../embeddings.npy
-  upsert  chunks.jsonl + embeddings.npy        -> chunks table (as ingest_rw)
+  upsert  chunks.jsonl + embeddings.npy        -> chunks table (as ingest_rw), idempotent
 
 Embedding is local, so there are no real rate limits. Two ways to simulate a 429 on
 the embed step and exercise Airflow's retries (PLAN M3):
@@ -74,10 +74,16 @@ def upsert(args) -> None:
     vectors = np.load(out / "embeddings.npy")
     assert len(rows) == len(vectors), "chunks and embeddings out of step"
     with connect("ingest_rw") as conn, conn.cursor() as cur:
-        # DELIBERATELY NAIVE (D17): plain INSERT, no key, no delete. Re-running a
-        # DAG run (a retry after a partial failure, or a backfill with
-        # --reprocess-behavior completed) duplicates every chunk. M3 measures what
-        # that does, then fixes it (INCIDENTS).
+        # Idempotent (D30): overwrite the whole slice in ONE transaction, so a retry,
+        # a cleared task or a reprocessing backfill leaves exactly one copy, and
+        # readers never see a half-written slice. The unique key chunks_slice_key
+        # (migration 005) makes a duplicate an error even if this code regresses.
+        cur.execute(
+            """DELETE FROM chunks WHERE tenant = %s AND snapshot_date = %s
+               AND chunker = %s AND embedder = %s""",
+            (args.tenant, args.date, args.chunker, args.embedder),
+        )
+        replaced = cur.rowcount
         cur.executemany(
             """INSERT INTO chunks (tenant, doc_id, snapshot_date, chunker, embedder,
                                    chunk_index, chunk_hash, text, embedding)
@@ -85,7 +91,8 @@ def upsert(args) -> None:
             [(args.tenant, r["doc_id"], args.date, args.chunker, args.embedder,
               r["chunk_index"], r["chunk_hash"], r["text"], v) for r, v in zip(rows, vectors)],
         )
-    print(f"upsert: inserted {len(rows)} chunks for {args.date} ({args.chunker} x {args.embedder})")
+    print(f"upsert: replaced {replaced} rows with {len(rows)} chunks for {args.date} "
+          f"({args.chunker} x {args.embedder})")
 
 
 def main() -> None:
