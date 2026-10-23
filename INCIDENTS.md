@@ -206,3 +206,45 @@ Never rely on a framework default you haven't checked in the installed version. 
 explicit timeouts on every network client.
 
 **Time lost:** about 45 min, mostly the "hang" diagnosis.
+
+---
+
+## #7 Re-run backfill duplicates every chunk (PLANNED trap, M3, 2026-10-23)
+
+**Planned:** D17 left `chunks` without a unique key on purpose, and the DAG's `upsert` task
+is a plain `INSERT`. The question was what a re-run does, and what the metric shows.
+
+**Trigger:** `airflow backfill create … --from-date 2026-10-12 --to-date 2026-10-16
+--reprocess-behavior completed`, i.e. re-running days that had already succeeded.
+That's exactly what an operator does after fixing a bug in a downstream task.
+(Reprocessed backfill runs reuse their run IDs, `backfill__<date>`, so the run list
+alone doesn't show that anything ran twice.)
+
+**Symptom:** Every snapshot went from 315 rows to 630, with 315 exact duplicates. All
+Airflow runs were green.
+
+**Hypothesis (PLAN M3):** Duplicates *inflate* hit@5 while the system gets worse.
+
+**Actual effect (eval_runs, same days, before → after):**
+- doc@5: 0.68 → 0.62.
+- fact@5 unfiltered: 0.65 → 0.59.
+- fact@5 KG-filtered: **1.00 → 0.92**.
+
+Duplicates *lowered* our metrics. Each chunk occupies two of the five slots, so the
+top 5 holds only about 3 distinct chunks and second-best evidence is crowded out. The
+plan's "inflation" holds for a precision-style metric (the share of the top 5 from the
+right doc), not for presence-style hit@5. Both mislead; the direction depends on the
+metric.
+
+**Actual cause:** A non-idempotent write in a task that Airflow is designed to re-run.
+Retries, `airflow tasks clear`, and backfill reprocessing all re-execute `upsert` with
+the same inputs.
+
+**Fix:** See D30.
+
+**Prevention at scale:** Every task must be safe to run twice with the same logical
+date. Make that a constraint the database enforces (a unique key), not a convention.
+Record row counts per slice next to quality metrics (`eval_runs.chunk_rows`): the
+doubling was obvious there long before the quality dip would have been.
+
+**Time lost:** 0 (planned). About 5 min to measure.
