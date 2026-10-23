@@ -252,3 +252,45 @@ Record row counts per slice next to quality metrics (`eval_runs.chunk_rows`): th
 doubling was obvious there long before the quality dip would have been.
 
 **Time lost:** 0 (planned). About 5 min to measure.
+
+---
+
+## #8 Deadline Alert coverage gaps (M3, 2026-10-23)
+
+**Context:** Deadline Alerts are documented as *experimental* in Airflow 3.3.2 (D28).
+These are behaviours observed in the metadata DB's `deadline` table, not documented
+ones. Present them as observations.
+
+**Symptom:** After the second and third backfills, no new deadline alerts fired, even
+though the last runs of each backfill waited about 4 minutes in the queue.
+
+**Observations:**
+1. **Queue time counts.** `DAGRUN_QUEUED_AT` starts the clock at queueing. All five
+   first-backfill runs missed their 4-minute deadline while blocked behind the paused
+   DAG, before any task ran. Arguably correct ("the data wasn't there in time"), but a
+   paused DAG or a full worker pool shows up as missed deadlines.
+2. **Reprocessed backfill runs get no new deadline.** `--reprocess-behavior completed`
+   re-queues the *existing* run rows (same `backfill__<date>` run IDs). Their deadline
+   rows from the first queueing stay as they were, already `missed = true`, and no new
+   row is created. **A re-run is therefore not covered by the deadline at all.**
+3. **Runs that finish in time leave no deadline row.** The Oct 17 and Oct 18 manual runs
+   finished in under 4 minutes and have no row. A fresh manual run for Oct 19 (no
+   snapshot) did get one, which then fired. Most likely Airflow deletes the deadline when
+   the run completes in time. Inferred, not confirmed in the docs.
+4. **Callback context, observed:** `{dag_run, deadline}`. The run's ID field is
+   `dag_run_id`, not `run_id`, so the first callback version logged `null`.
+
+**Hypothesis vs. cause:** I first suspected the triggerer had failed to load the edited
+callback after the restart. The Oct 19 test run ruled that out: a deadline was created
+and fired 2s after its due time.
+
+**Fix / mitigation:** The callback now reads `dag_run_id`, `logical_date`, `run_type`
+and `queued_at`. For re-runs, don't rely on the deadline: the run-count and row-count
+checks in `eval_runs` cover them. In production, pair the deadline with an independent
+freshness check, e.g. "the newest `chunks.snapshot_date` is older than N hours". That's
+a natural Prometheus alert for M5.
+
+**Prevention at scale:** Treat an experimental feature's coverage as unknown until
+measured. Test it with a run that must miss (no snapshot), as here.
+
+**Time lost:** about 20 min.
