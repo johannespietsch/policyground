@@ -330,3 +330,87 @@ consumer write idempotent and monotonic, with a version from the source of truth
 local clock. Keying is for throughput and locality; the guard is for correctness.
 
 **Time lost:** 0 (planned).
+
+---
+
+## #10 During staleness, the strict validator blocks correct answers that mention the stale value (M4, 2026-10-23)
+
+**Context:** Drift run for mutation 2026-10-21. The consumer had applied 15 changes to the
+KG, but the vectors were still old (disagreement 0.100). Probe set: 15 questions about
+exactly the changed properties.
+
+**Symptom:** The kg graph, expected to "stay correct throughout" (PLAN M4), scored 0.87,
+0.87, 1.00 on the new truth, below its 1.00 baseline. Every miss was a validator-forced
+abstention, after 2 rejected attempts.
+
+**Hypothesis:** The model trusted the stale excerpt over the KG fact.
+
+**Actual cause:** The opposite. Streaming each attempt showed the model **always** stated
+the correct new deadline, and often flagged the conflict itself: "Excerpt P030#3's
+48-hour wording is overridden by the 24-hour fact." The strict validator (D24) rejects
+any number not backed by *cited* evidence. When the model mentioned the stale "48" but
+didn't cite that excerpt, a correct answer was rejected. (When it did cite the stale
+excerpt, "48" counted as backed and the answer passed.) Two rejections in a row, then
+abstain.
+
+**Measured real-world validator behaviour (D23):** During the staleness window the
+validator caught **0 wrong values**, because there were none, and blocked correct answers
+in about 9% of kg answers. After the refresh (no stale excerpts): kg 1.00 in all 3 runs.
+So on this data the validator's real cost is false positives under staleness, and its
+injected-fault catch rate (149/150) is still the only evidence it catches real errors.
+
+**Fix:** Pending decision (see the decision raised in chat, 2026-10-23).
+
+**Prevention at scale:** A guardrail tuned on clean data needs re-testing under the
+failure it's meant for. Here staleness changed what "unbacked" means: the stale value
+*is* in the evidence, just superseded. Count blocked-but-correct answers as a metric
+next to the catch rate, not only answers that slip through.
+
+**Time lost:** about 15 min (diagnosis by streaming attempts).
+
+---
+
+## #11 The noise band from 3 identical runs has zero width (M4, 2026-10-23)
+
+**Symptom:** The baseline phase gave rag 0.80/0.80/0.80 and kg 1.00/1.00/1.00, so the
+band is mean ± 2σ = [0.80, 0.80] and [1.00, 1.00]. Any change at all, even one question,
+counts as "drift".
+
+**Evidence that it's an underestimate:** The refreshed phase gave rag 0.87/0.80/0.87, a
+nonzero spread on a comparable workload. Three runs that happen to agree say little about
+σ, and with n = 15 probes a single question is a 0.067 step.
+
+**Impact on this run's verdicts:** rag's drop (0.80 → 0.00) is real under any reasonable
+band. kg's dip (→ 0.91) was flagged as "drift" mainly because the band has zero width;
+its real cause is #10.
+
+**Fix:** Pending decision. Options: more baseline runs, a floor from question-sampling
+error, or σ pooled over phases.
+
+**Prevention at scale:** Never accept a zero-variance noise estimate. Floor it with the
+sampling error of the eval set (√(p(1−p)/n)), or estimate σ from more runs. Report the
+band with its n.
+
+**Time lost:** 0.
+
+---
+
+## #12 Second trigger for the same logical date silently didn't exist (M4, 2026-10-23)
+
+**Symptom:** A refresh run for 2026-10-21 with the baseline config "triggered", but its
+chunks never appeared. After 19 minutes there were still no rows.
+
+**Actual cause:** Airflow 3 allows **one DAG run per logical date** (it's the run's
+identity). The second `dags trigger --logical-date 2026-10-21` was rejected, but my
+command grepped a `manual__…` ID out of the *error message* and reported it as created.
+
+**Fix:** Ingested the baseline slice with the same step CLIs the DAG uses (it exists only
+for comparison). Re-running a day with other parameters means *clearing* the existing run,
+not triggering a second one.
+
+**Prevention at scale:** Check a CLI's exit status and parse its structured output. Never
+treat "an ID appears in the output" as success. And design for "one run per logical
+date": a second configuration belongs in a separate DAG, or in a mapped task inside
+one run.
+
+**Time lost:** about 20 min.
