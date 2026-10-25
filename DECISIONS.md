@@ -1074,3 +1074,11 @@ KG access. The role boundary from D42 carries over, with no new credential type.
 
 **Revisit if:** Diagnosis through the agent needs metrics and logs. Then add Grafana's
 server with a read-only service account.
+
+**Amended 2026-10-25 (as built):** `postgres-mcp` 0.3.0 can't be installed from PyPI: its
+pinned dependency `pglast==7.2.0` no longer has any files there. It runs instead as the
+publisher's Docker image `crystaldba/postgres-mcp:0.3.0`, with `--access-mode=restricted`,
+in `.mcp.json`. Verified through raw JSON-RPC: an allowed query on `drift_runs` returns
+rows; `policy_fact` gives "permission denied" (role, D42); `DELETE` is refused before it
+reaches the DB (restricted mode). The image only negotiates protocol 2024-11-05. Our MCP
+SDK 2.3.0 *client* rejects that, while Claude Code (the actual client) accepts it.
