@@ -109,7 +109,7 @@ def main() -> None:
     kg = KG.load(data / "kg.json")
     changes = mutate(kg, args.date, args.fraction, random.Random(f"mutate-{args.date}"))
     (data / "kg.json").write_text(kg.to_json())
-    manifest = render_snapshot(kg, args.date, args.root, kg.seed)
+    manifest = render_snapshot(json.loads(kg.to_json()), args.date, args.root, kg.seed)
 
     golden = json.loads((data / "golden.json").read_text())
     touched = {c["property_id"] for c in changes}

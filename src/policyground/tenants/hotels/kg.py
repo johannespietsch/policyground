@@ -82,12 +82,25 @@ class KG:
             index.setdefault((f.entity_type, f.entity_id), []).append(f)
         return index
 
+    def entities(self) -> list[dict]:
+        """The generic entity list every tenant's kg.json carries (policyground.kgmodel)."""
+        return ([{"id": c["id"], "type": "chain", "parent_id": None, "name": c["name"], "attrs": {}}
+                 for c in self.chains]
+                + [{"id": b["id"], "type": "brand", "parent_id": b["chain_id"], "name": b["name"], "attrs": {}}
+                   for b in self.brands]
+                + [{"id": p["id"], "type": "property", "parent_id": p["brand_id"], "name": p["name"],
+                    "attrs": {"city": p["city"]}} for p in self.properties]
+                + [{"id": r["id"], "type": "rate_plan", "parent_id": r["property_id"], "name": None,
+                    "attrs": {"kind": r["kind"]}} for r in self.rate_plans])
+
     def to_json(self) -> str:
         data = {k: v for k, v in asdict(self).items() if not k.startswith("_idx_")}
+        data["entities"] = self.entities()
         return json.dumps(data, indent=2)
 
     @classmethod
     def load(cls, path: Path) -> KG:
         data = json.loads(path.read_text())
+        data.pop("entities", None)  # derived; rebuilt by to_json
         data["policy_facts"] = [PolicyFact(**f) for f in data["policy_facts"]]
         return cls(**data)

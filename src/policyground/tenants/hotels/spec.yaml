@@ -1,0 +1,46 @@
+# Hotels: partner/property policies for customer-support agents (D1). The first tenant;
+# skills/onboard-tenant/SKILL.md explains every key.
+tenant: hotels
+levels: [chain, brand, property, rate_plan]   # root -> leaf
+subject: property        # the level questions name; resolved by fuzzy name match (D22)
+variant: rate_plan       # level below the subject: its facts apply only to that option
+doc_ids:
+  subject: "{id}"                # P001.md
+  other: "{level}-{id}"          # brand-C1-B1.md, chain-C1.md (rate plans have no doc)
+
+facts:
+  cancel_window_hours:
+    type: int
+    unit: hours
+    meaning: "free cancellation until this many hours before check-in on the arrival day (check-in time = check_in_time)."
+  late_cancel_fee:
+    type: enum
+    values: [first_night, full_stay, 50_percent]
+    meaning: "what is charged after the window (first_night, full_stay, 50_percent)."
+  check_in_time: {type: time}
+  check_out_time: {type: time}
+  pets_allowed: {type: bool}
+  pet_fee_eur:
+    type: int
+    unit: EUR
+    meaning: "per night, only relevant if pets_allowed is true."
+  refundable:
+    type: bool
+    level: variant
+    meaning: "false on a rate plan means that booking can never be cancelled free of charge."
+  breakfast_included: {type: bool, level: variant}
+
+deadlines:
+  - name: free_cancellation
+    anchor_date: question        # a date stated in the question (the arrival)
+    anchor_time: check_in_time
+    offset: cancel_window_hours
+    direction: before
+
+chunking:
+  keep_together: [Cancellation, Rate plans]   # the rule and its exception stay in one chunk
+
+prompt:
+  audience: "customer-support agents about hotel policies"
+  subject_noun: property
+  variant_noun: rate plan
