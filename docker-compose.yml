@@ -41,5 +41,46 @@ services:
       timeout: 5s
       retries: 20
 
+  # ---- observability (PLAN M5, D39-D42). Configs are baked into images (no bind mounts
+  # from ~/Documents, D15); the only mount is the log directory, from ~/Library/Logs (D39).
+  prometheus:
+    build: ./obs/prometheus
+    image: policyground-prometheus
+    ports: ["9090:9090"]
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    restart: unless-stopped
+  loki:
+    image: grafana/loki:3.7.8
+    command: -config.file=/etc/loki/local-config.yaml
+    ports: ["3100:3100"]
+    restart: unless-stopped
+  alloy:
+    build: ./obs/alloy
+    image: policyground-alloy
+    command: run /etc/alloy/config.alloy --storage.path=/var/lib/alloy/data --server.http.listen-addr=0.0.0.0:12345
+    volumes:
+      - ${HOME}/Library/Logs/policyground:/logs:ro
+    ports: ["12345:12345"]
+    depends_on: [loki]
+    restart: unless-stopped
+  grafana:
+    build: ./obs/grafana
+    image: policyground-grafana
+    ports: ["3001:3000"]      # 3000 is often taken locally
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"      # local demo: read-only viewing without login
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+    depends_on: [prometheus, loki, postgres]
+    restart: unless-stopped
+  phoenix:
+    image: arizephoenix/phoenix:20.21.0
+    ports: ["6006:6006", "4317:4317"]      # UI + OTLP/HTTP on 6006, OTLP/gRPC on 4317
+    environment:
+      PHOENIX_WORKING_DIR: /mnt/data
+    volumes:
+      - phoenixdata:/mnt/data
+    restart: unless-stopped
+
 volumes:
   pgdata:
+  phoenixdata:

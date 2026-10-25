@@ -1,0 +1,31 @@
+// Tail the services' JSON logs and push them to Loki (D39).
+local.file_match "policyground" {
+  path_targets = [{"__path__" = "/logs/*.jsonl"}]
+}
+
+loki.source.file "policyground" {
+  targets    = local.file_match.policyground.targets
+  forward_to = [loki.process.policyground.receiver]
+}
+
+loki.process "policyground" {
+  stage.json {
+    expressions = {ts = "ts", service = "service", level = "level"}
+  }
+  // Only low-cardinality fields become Loki labels. request_id and property_id stay in
+  // the line and are filtered at query time (`| json | request_id="..."`), as in D41.
+  stage.labels {
+    values = {service = "", level = ""}
+  }
+  stage.timestamp {
+    source = "ts"
+    format = "RFC3339Nano"
+  }
+  forward_to = [loki.write.default.receiver]
+}
+
+loki.write "default" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

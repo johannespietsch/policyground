@@ -1,0 +1,14 @@
+# Scrapes the three host processes (PLAN M5, D40). They run on the host via uv, not in
+# containers, hence host.docker.internal.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+rule_files: [/etc/prometheus/rules.yml]
+scrape_configs:
+  - job_name: api
+    metrics_path: /metrics/        # FastAPI-mounted app: /metrics redirects to /metrics/
+    static_configs: [{targets: ["host.docker.internal:8000"]}]
+  - job_name: consumer
+    static_configs: [{targets: ["host.docker.internal:8001"]}]
+  - job_name: exporter
+    static_configs: [{targets: ["host.docker.internal:8002"]}]

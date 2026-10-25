@@ -1,0 +1,18 @@
+apiVersion: 1
+datasources:
+  - name: Prometheus
+    uid: prom
+    type: prometheus
+    url: http://prometheus:9090
+    isDefault: true
+  - name: Loki
+    uid: loki
+    type: loki
+    url: http://loki:3100
+  - name: Postgres
+    uid: pg
+    type: grafana-postgresql-datasource
+    url: postgres:5432
+    user: grafana_ro               # D42: eval_runs, drift_runs, chunk_slices only
+    jsonData: {database: policyground, sslmode: disable, postgresVersion: 1700}
+    secureJsonData: {password: grafana_ro}

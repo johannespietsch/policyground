@@ -465,3 +465,35 @@ diffs should be checked for *unexpected* changes, not only expected ones. A "cha
 vs changed facts" count would have caught this the moment the snapshot was written.
 
 **Time lost:** about 15 min so far.
+
+---
+
+## #14 Traces buried in scrape noise, and every LLM call counted twice (M5, 2026-10-25)
+
+**Symptom:** Looking up one request (`demo-q01`) in Phoenix found nothing among the 500
+most recent spans, although its log line was in Loki.
+
+**Actual cause (two problems):**
+1. **Scrape noise.** FastAPI (0.14x) has built-in OpenTelemetry support that traces every
+   request once a tracer provider exists, including Prometheus's `GET /metrics` every
+   15s. Real requests were pushed out of the recent-spans view. No FastAPI instrumentation
+   package was installed, which made the source non-obvious, and the usual
+   `OTEL_PYTHON_FASTAPI_EXCLUDED_URLS` setting doesn't apply to the built-in tracing.
+2. **Double-counted LLM calls.** The trace showed `messages.parse` *and* a nested
+   `anthropic.messages.create`, both LLM spans with the same 3,076 tokens.
+   `messages.parse` calls `create` internally, and the instrumentor wraps both, so any
+   token or cost total in Phoenix would be 2×. (Prometheus counts come from the API's
+   usage field, so they were correct.)
+
+**Fix:** A sampler in `obs/tracing.py` drops spans at creation for `/metrics`, and for
+`anthropic.messages.create` directly under `messages.parse`. Verified: a fresh request
+gives 13 spans, 0 for `/metrics`, and **one** LLM span with 2,317 tokens, equal to the
+API's own usage numbers. The correlation itself works: LLM spans carry `session.id` and
+`metadata.request_id`, equal to the log line's `request_id`.
+
+**Prevention at scale:** Check every telemetry source against a ground truth. Here the
+token totals should equal the API's usage counts, and that check found the doubling.
+Exclude health and metrics endpoints from tracing by default, and know which libraries
+emit spans on their own.
+
+**Time lost:** about 20 min.

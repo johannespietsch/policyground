@@ -1,0 +1,45 @@
+groups:
+  - name: policyground
+    rules:
+      # Share of questions that ended in an abstention, over 15 minutes.
+      - record: policyground:abstain_rate:15m
+        expr: |
+          sum by (tenant) (increase(policyground_abstentions_total[15m]))
+          / clamp_min(sum by (tenant) (increase(policyground_requests_total[15m])), 1)
+
+      # PLAN M5: abstain rate above 2x baseline. Baseline 0.14 = the golden set's expected
+      # abstention share (6 of 43: 5 unanswerable + 1 ambiguous), so the threshold is 0.28.
+      # Needs >= 10 questions in the window, so one unlucky question can't page anyone.
+      - alert: AbstainRateHigh
+        expr: |
+          policyground:abstain_rate:15m > 2 * 0.14
+          and sum by (tenant) (increase(policyground_requests_total[15m])) >= 10
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "Abstain rate {{ $value | humanizePercentage }} (> 2x baseline 14%)"
+          runbook: "Split by reason (abstentions panel). validator -> INCIDENTS #10; unresolved_property -> name matching (D22); model -> missing facts."
+
+      # INCIDENTS #8: freshness check independent of Airflow's experimental deadline alerts.
+      # A skipped nightly run (no snapshot) also ends up here.
+      - alert: SnapshotStale
+        expr: policyground_newest_snapshot_age_seconds > 26 * 3600
+        for: 10m
+        labels: {severity: warning}
+        annotations:
+          summary: "Newest production snapshot is {{ $value | humanizeDuration }} old"
+
+      # M4 staleness window: expected for up to a day after policy changes; informational.
+      - alert: KGVectorDisagreement
+        expr: policyground_kg_vector_disagreement > 0
+        for: 30m
+        labels: {severity: info}
+        annotations:
+          summary: "{{ $value | humanizePercentage }} of properties: KG and vectors disagree (staleness window open)"
+
+      - alert: TargetDown
+        expr: up == 0
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "{{ $labels.job }} is not being scraped"
