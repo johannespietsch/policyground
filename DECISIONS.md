@@ -1000,3 +1000,77 @@ default. It's a fourth role, easy to explain alongside admin, `ingest_rw` and `a
 (D15).
 
 **Revisit if:** The dashboard needs other tables. Grant them explicitly.
+
+---
+
+## D43 Second tenant: insurance coverage
+
+**Date:** 2026-10-25
+
+**Options:** (a) Insurance coverage; (b) HR benefits; (c) lending eligibility.
+
+**Chosen:** (a). Insurer → product → plan tier → policy, with facts like the
+claim-filing deadline (days after the incident), the deductible (EUR), the waiting
+period, and exclusions that override coverage.
+
+**Why:** It's the closest structural analogue to hotels: nested defaults with overrides,
+date arithmetic, amounts, and an exception class (exclusions ~ non-refundable). So it
+tests whether the platform is *generic*, not whether it can handle a novel answer type.
+
+**Revisit if:** We want to show a different answer type (ratios, thresholds). That
+would be lending.
+
+---
+
+## D44 A spec-driven core
+
+**Date:** 2026-10-25
+
+**Context:** The hotel domain was hard-coded in the entity type check, the name matcher,
+the prompt glossary, the chunker, the scorer and the validator's deadline rule.
+
+**Options:** (a) The core reads a tenant spec (YAML): levels, subject level, fact keys
+with meanings, deadline rules, keep-together sections, question kinds. (b) Only the
+obvious hard-codes become parameters, and the agent copies the hotels package.
+
+**Chosen:** (a). The agent writes only spec + seed adapter + golden set.
+
+**Why:** That's what makes "onboarding through a written skill" a reusable capability
+rather than copy-paste. Constraint: hotels results must stay identical, checked by
+re-running the evals after the refactor.
+
+**Revisit if:** The spec grows a mini-language. Keep anything that needs code in the
+adapter.
+
+---
+
+## D45 The skill is run by a fresh subagent
+
+**Date:** 2026-10-25
+
+**Options:** (a) A new Claude Code subagent in its own git worktree, given only
+AGENTS.md, SKILL.md and the repo. (b) Me, in this session.
+
+**Chosen:** (a). Count its attempts until the mandatory done-check passes (METRICS).
+
+**Why:** Only a cold start tests the *written* skill. I know everything the skill leaves
+out, so my own attempt count would be meaningless.
+
+**Revisit if:** Not expected to change.
+
+---
+
+## D46 Off-the-shelf MCP server: Postgres, read-only, as grafana_ro
+
+**Date:** 2026-10-25
+
+**Options:** (a) A Postgres MCP server, read-only. (b) Grafana's MCP server. (c) None.
+
+**Chosen:** (a), connected as `grafana_ro` (eval_runs, drift_runs, chunk_slices only)
+and declared in a project `.mcp.json` next to our own server.
+
+**Why:** An agent can query eval and drift results directly, with no write access and no
+KG access. The role boundary from D42 carries over, with no new credential type.
+
+**Revisit if:** Diagnosis through the agent needs metrics and logs. Then add Grafana's
+server with a read-only service account.
