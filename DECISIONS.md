@@ -927,3 +927,76 @@ answers.
 labels; (c) would discard the measured history.
 
 **Revisit if:** Templates themselves should change over time (a "partner redesign" event).
+
+---
+
+## D39 Logs: JSON files tailed by Grafana Alloy into Loki
+
+**Date:** 2026-10-25
+
+**Options:** (a) Grafana Alloy tails JSON log files. (b) The app pushes to Loki over HTTP.
+(Promtail, the classic shipper, has reached end of life; Alloy is its successor.)
+
+**Chosen:** (a). The API, consumer and exporter write JSON lines to
+`~/Library/Logs/policyground/*.jsonl`. That path, not the repo, because Docker Desktop
+can't bind-mount from `~/Documents` (D15) but can from `~/Library/Logs` (tested).
+
+**Why:** The app knows nothing about the log backend. If Loki is down, logs stay on disk
+and Alloy catches up.
+
+**Revisit if:** Services move into containers. Then log to stdout and let Alloy read
+Docker's logs.
+
+---
+
+## D40 Dashboard scope: API plus pipeline health
+
+**Date:** 2026-10-25
+
+**Options:** (a) API panels plus consumer lag/events, KG/vector disagreement, newest
+snapshot age. (b) API panels only, as planned.
+
+**Chosen:** (a). Skipped DAG runs show up as snapshot age (a skipped night means no new
+snapshot), so Grafana needs no access to Airflow's database.
+
+**Why:** M5's goal is "diagnose an M4 incident from the dashboard alone". The M4
+staleness incident is visible only through disagreement and snapshot age.
+
+**Revisit if:** The dashboard gets too noisy to use. Split it into "request path" and
+"pipeline".
+
+---
+
+## D41 Metric labels: low-cardinality from the start
+
+**Date:** 2026-10-25
+
+**Options:** (a) Reproduce the cardinality trap (property_id as a label), measure, fix.
+(b) Do it right from the start.
+
+**Chosen:** (b). Labels only from a closed set: `tenant`, `route`, `outcome`, `reason`,
+`direction`, `partition`. IDs (property, request, rate plan) go only into logs and
+traces. A test fails if a metric declares any other label.
+
+**Why:** Your call: the trap is well understood, and building it right was preferred over
+spending time reproducing it. Consequence: the PLAN M5 incident becomes a description,
+not a measurement. Say so if asked.
+
+**Revisit if:** Not expected to change.
+
+---
+
+## D42 Grafana's database role: grafana_ro
+
+**Date:** 2026-10-25
+
+**Options:** (a) A new `grafana_ro` role with SELECT on `eval_runs` and `chunks` only.
+(b) Reuse `api_ro`.
+
+**Chosen:** (a).
+
+**Why:** Least privilege. The dashboard can't read the KG or anything added later by
+default. It's a fourth role, easy to explain alongside admin, `ingest_rw` and `api_ro`
+(D15).
+
+**Revisit if:** The dashboard needs other tables. Grant them explicitly.

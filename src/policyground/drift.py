@@ -27,9 +27,18 @@ from policyground.config import PRODUCTION  # noqa: E402
 from policyground.db import connect  # noqa: E402
 from policyground.eval.metrics_md import append_to_table  # noqa: E402
 from policyground.eval.score import is_correct  # noqa: E402
+from psycopg.types.json import Jsonb  # noqa: E402
 
 SECTION = "## Drift (M4)"
 METRICS = Path("METRICS.md")
+
+
+def record_db(tenant, mutation, phase, graph, n, truth, scores, mean, lo, hi, verdict, stats) -> None:
+    """Also store drift results in the DB, for the dashboard (PLAN M5, migration 007)."""
+    with connect("ingest_rw") as conn:
+        conn.execute("""INSERT INTO drift_runs (tenant, mutation, phase, graph, n_questions, truth, scores,
+                        mean, band_lo, band_hi, verdict, stats) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                     (tenant, mutation, phase, graph, n, truth, Jsonb(scores), mean, lo, hi, verdict, Jsonb(stats)))
 
 
 def _row(*cells) -> None:
@@ -169,6 +178,8 @@ def main() -> None:
             verdict = f"{verdict} ({detail})"
             print(f"{args.phase:10s} {g:3s} runs {[round(x, 2) for x in scores]} mean {mean:.2f} "
                   f"band {band_txt} -> {verdict}")
+            record_db(args.tenant, args.date, args.phase, g, len(probes), args.expect, scores, mean,
+                      lo, hi, verdict, st)
             _row(now, args.date, args.phase, g, len(probes), args.expect,
                  " / ".join(f"{x:.2f}" for x in scores), f"{mean:.2f}", band_txt, verdict, "", "")
     elif args.what == "disagreement":

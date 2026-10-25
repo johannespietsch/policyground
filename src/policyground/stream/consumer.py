@@ -19,11 +19,24 @@ import json
 import sys
 import time
 
-from confluent_kafka import Consumer, KafkaError
+from confluent_kafka import Consumer, KafkaError, TopicPartition
+from prometheus_client import start_http_server
 from psycopg.types.json import Jsonb
 
 from policyground.db import connect
+from policyground.obs import logs, metrics
 from policyground.stream.events import BOOTSTRAP, TOPIC, PolicyChanged
+
+METRICS_PORT = 8001
+
+
+def _update_lag(consumer: Consumer) -> None:
+    """Lag per partition = high watermark - our position (events not yet consumed)."""
+    for tp in consumer.assignment():
+        _, high = consumer.get_watermark_offsets(tp, cached=False, timeout=2)
+        [pos] = consumer.position([TopicPartition(tp.topic, tp.partition)])
+        current = pos.offset if pos.offset >= 0 else 0
+        metrics.CONSUMER_LAG.labels(str(tp.partition)).set(max(high - current, 0))
 
 GUARDED = """
     INSERT INTO policy_fact (tenant, entity_id, key, value, valid_from, version, updated_at)
@@ -50,7 +63,11 @@ def main() -> None:
     ap.add_argument("--idle-exit", type=float, default=0,
                     help="exit after this many seconds without messages (0 = run forever)")
     ap.add_argument("--no-guard", action="store_true", help="TRAP DEMO ONLY: last write wins")
+    ap.add_argument("--metrics-port", type=int, default=METRICS_PORT, help="0 = no /metrics")
     args = ap.parse_args()
+    log = logs.setup("consumer")
+    if args.metrics_port:
+        start_http_server(args.metrics_port)
 
     consumer = Consumer({
         "bootstrap.servers": BOOTSTRAP,
@@ -60,12 +77,15 @@ def main() -> None:
     })
     consumer.subscribe([TOPIC])
     counts = {"applied": 0, "ignored": 0}
-    last_message = time.monotonic()
+    last_message = last_lag = time.monotonic()
     with connect("ingest_rw") as conn:
         conn.autocommit = False
         try:
             while True:
                 msg = consumer.poll(1.0)
+                if time.monotonic() - last_lag > 5:
+                    _update_lag(consumer)
+                    last_lag = time.monotonic()
                 if msg is None:
                     if args.idle_exit and time.monotonic() - last_message > args.idle_exit:
                         break
@@ -79,10 +99,16 @@ def main() -> None:
                 changed = apply(conn, e, guard=not args.no_guard)
                 conn.commit()                                  # 1. the KG write is durable
                 consumer.commit(message=msg, asynchronous=False)  # 2. only then move the offset
-                counts["applied" if changed else "ignored"] += 1
-                print(json.dumps({"partition": msg.partition(), "offset": msg.offset(),
-                                  "entity": e.entity_id, "key": e.key, "version": e.version,
-                                  "value": e.value, "applied": changed}), flush=True)
+                outcome = "applied" if changed else "ignored"
+                counts[outcome] += 1
+                metrics.EVENTS.labels(outcome).inc()
+                if changed:
+                    metrics.LAST_APPLIED.set_to_current_time()
+                fields = {"partition": msg.partition(), "offset": msg.offset(), "entity": e.entity_id,
+                          "key": e.key, "version": e.version, "value": e.value, "applied": changed,
+                          "event_id": e.event_id}
+                logs.event(log, "policy.changed", **fields)
+                print(json.dumps(fields), flush=True)
         finally:
             consumer.close()
     print(json.dumps({"summary": counts, "guard": not args.no_guard}), flush=True)
