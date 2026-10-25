@@ -150,6 +150,9 @@ def main() -> None:
             print(f"  VALIDATOR   {r['id']} attempts={r['attempts']} forced_abstain={r['forced_abstain']} "
                   f"problems={r['validator_problems']} warnings={r['validator_warnings']}")
     print(f"wrote {out}")
+    # Machine-readable last line for the onboarding done-check (policyground.checks.tenant).
+    print("SUMMARY " + json.dumps({"run": run_id, "correct": s["correct"], "abst_acc": s["abst_acc"],
+                                   "n": len(core), "unanswerable": len(unanswerable)}))
 
 
 if __name__ == "__main__":

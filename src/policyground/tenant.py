@@ -4,7 +4,7 @@
               chunking, prompt wording. Read by the core; no code.
   adapter.py  generate(seed) -> kg dict; render(kg, entity_id, chooser) -> markdown;
               golden(kg, manifest, seed) -> questions. Everything that needs code.
-See skills/onboard-tenant/SKILL.md for how to add one.
+See .claude/skills/onboard-tenant/SKILL.md for how to add one.
 """
 
 from __future__ import annotations

@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "policyground": {
+      "command": "uv",
+      "args": ["run", "python", "-m", "policyground.mcp_server"],
+      "env": {"POLICYGROUND_TRACING": "1"}
+    },
+    "policyground-db": {
+      "command": "docker",
+      "args": ["run", "-i", "--rm", "-e", "DATABASE_URI", "crystaldba/postgres-mcp:0.3.0", "--access-mode=restricted"],
+      "env": {"DATABASE_URI": "postgresql://grafana_ro:grafana_ro@localhost:5433/policyground"}
+    }
+  }
+}

@@ -31,14 +31,16 @@ migrate:  ## apply db/migrations in order, as the schema owner (files are idempo
 		docker compose exec -T postgres psql -q -v ON_ERROR_STOP=1 -U pgadmin -d policyground < $$f || exit 1; \
 	done
 
-seed:
-	uv run python -m policyground.seed
+TENANT ?= hotels
 
-kg:  ## load data/<tenant>/kg.json into the KG tables
-	uv run python -m policyground.kg
+seed:  ## TENANT=<name>: generate kg.json, corpus snapshot and golden set via the tenant adapter
+	uv run python -m policyground.seed --tenant $(TENANT)
 
-ingest: kg
-	uv run python -m policyground.ingest
+kg:  ## TENANT=<name>: load data/<tenant>/kg.json into the KG tables
+	uv run python -m policyground.kg --tenant $(TENANT)
+
+ingest: kg  ## TENANT=<name>: chunk + embed the latest snapshot (production config)
+	uv run python -m policyground.ingest --tenant $(TENANT) --date $$(ls corpus/$(TENANT) | sort | tail -1)
 
 ingest-all: kg  ## every chunker x embedder, for the M2 comparison
 	for c in naive-800 structural-v1; do for e in bge-small-en-v1.5 e5-base-v2; do \
@@ -49,7 +51,13 @@ api:  ## http://localhost:8000
 
 GRAPH ?= kg
 eval:  ## GRAPH=rag for the M1 baseline
-	uv run python -m policyground.eval --graph $(GRAPH)
+	uv run python -m policyground.eval --tenant $(TENANT) --graph $(GRAPH)
+
+check-tenant:  ## TENANT=<name>: the MANDATORY done-check for onboarding (.claude/skills/onboard-tenant/SKILL.md)
+	uv run python -m policyground.checks.tenant $(TENANT)
+
+mcp:  ## the read-only MCP server on stdio (normally started by the MCP client via .mcp.json)
+	uv run python -m policyground.mcp_server
 
 test:
 	uv run pytest -q

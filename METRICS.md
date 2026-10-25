@@ -55,6 +55,7 @@ Every column is defined here before it has numbers (PLAN §7). Rows are appended
 | 20261025-111248 | 7c15943 | M2 | hotels | structural-v1 | e5-base-v2 | claude-haiku-5-5 | 30 | 1.00 | 1.00 | 0.00 | 0.96 | 0.00036 | 2.2 | 5.7 | kg | 0.00 | 5/5 | 0.00 | 0.00 | 8/8 |
 | 20261025-163605 | 2b6bd73 | M2 | hotels | structural-v1 | e5-base-v2 | claude-haiku-5-5 | 30 | 1.00 | 1.00 | 0.00 | 0.96 | 0.00036 | 2.4 | 3.9 | kg | 0.00 | 5/5 | 0.03 | 0.03 | 8/8 |
 | 20261025-163751 | 2b6bd73 | M1 | hotels | naive-800 | bge-small-en-v1.5 | claude-haiku-5-5 | 30 | 0.72 | 1.00 | 0.28 | 0.72 | 0.00033 | 1.7 | 4.0 | rag | 0.04 | 4/5 | — | — | 3/8 |
+| 20261025-165256 | c0e8dc0+dirty | M2 | hotels | structural-v1 | e5-base-v2 | claude-haiku-5-5 | 30 | 1.00 | 1.00 | 0.00 | 0.96 | 0.00035 | 2.1 | 3.5 | kg | 0.00 | 5/5 | 0.00 | 0.00 | 8/8 |
 
 ## Validator fault injection
 
