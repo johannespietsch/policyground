@@ -525,3 +525,32 @@ traffic. When a log count looks wrong, check the shipper's own metrics before bl
 the shipper.
 
 **Time lost:** about 15 min.
+
+---
+
+## #16 The stdio stdout trap, as measured with MCP SDK 2.3.0 (PLANNED trap, M6, 2026-10-25)
+
+**Planned (PLAN M6):** Printing to stdout corrupts a stdio MCP transport, so logs must go
+to stderr.
+
+**Measured** (`tests/test_mcp.py`, a test-only server with tools that print to stdout):
+- A whole junk line on stdout: the SDK 2.3.0 **client logs**
+  `Failed to parse JSONRPC message from server` (a pydantic validation error), **skips
+  the line, and the call succeeds**.
+- A partial print (no newline) also didn't break the call in this client. I couldn't
+  confirm a lost response; a raw-pipe probe to see the bytes hung and was time-boxed,
+  not resolved.
+- Inside the guard (`contextlib.redirect_stdout(sys.stderr)`, as used by every tool in
+  `policyground.mcp_server`), nothing reaches the protocol channel.
+
+**Conclusion:** With this client the trap is *not* reproduced as session corruption, only
+as logged parse errors. It's still a real hazard: other clients, other SDK versions,
+binary or partial writes. That's why the server logs to stderr and a file, and guards
+stdout in every tool. Present it as "the newer client is forgiving; we don't rely on
+that", not as "we hit corruption".
+
+**Prevention at scale:** Treat stdout as the transport whenever a process speaks a stdio
+protocol. Route all logging to stderr at process start, and guard tool bodies, because
+third-party libraries print.
+
+**Time lost:** about 25 min (including the inconclusive raw-pipe probe).
