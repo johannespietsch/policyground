@@ -1,0 +1,53 @@
+# Insurance: travel-insurance coverage policies for claims-support agents.
+# .claude/skills/onboard-tenant/SKILL.md explains every key.
+tenant: insurance
+levels: [insurer, product, tier, policy, coverage_option]   # root -> leaf
+subject: policy            # questions name an individual customer's policy by its name
+variant: coverage_option   # medical / baggage / trip_cancellation below each policy
+doc_ids:
+  subject: "{id}"                # POL001.md
+  other: "{level}-{id}"          # insurer-I1.md, product-I1-P1.md, tier-I1-P1-T2.md (options have no doc)
+
+facts:
+  claim_window_days:
+    type: int
+    unit: days
+    meaning: "claims must be filed within this many calendar days after the incident date; the last day to file is the incident date plus this many days."
+  deductible_eur:
+    type: int
+    unit: EUR
+    meaning: "the amount in EUR the customer pays themselves on each claim (the excess)."
+  waiting_period_days:
+    type: int
+    unit: days
+    meaning: "cover only applies from the policy start date plus this many days; incidents before that date are not covered."
+  excluded:
+    type: bool
+    level: variant
+    meaning: "true on a coverage option means that option is NOT covered at all on this policy: no claim under it is accepted, whatever the claim window, deductible or waiting period. false means it is covered on the policy's normal terms."
+
+deadlines:
+  - name: claim_filing
+    anchor_date: question        # the incident date stated in the question
+    anchor_date_hints: [incident, happened, occurred]
+    offset: claim_window_days
+    direction: after
+  - name: cover_start
+    anchor_date: question        # the policy start date stated in the question
+    anchor_date_hints: [start, began, took effect]
+    offset: waiting_period_days
+    direction: after
+
+chunking:
+  keep_together: [Claims, Coverage options]   # the claim rule and the exclusions stay in one chunk
+
+prompt:
+  audience: "claims-support agents about travel-insurance policies"
+  subject_noun: policy
+  variant_noun: coverage option
+  variant_scope: claims under that coverage option
+  rules:
+    - "Each coverage option's `option` fact says which cover it is (medical, baggage, trip_cancellation). Match the claim in the question to that option."
+    - "If the claim falls under a coverage option with excluded = true, say clearly that this option is not covered on this policy, and cite that fact. Do NOT give a claim-filing deadline, claim window, deductible or waiting period for it: they don't apply and would only confuse the customer. This is a complete answer, so don't abstain."
+    - "A claim-filing deadline is the incident date plus claim_window_days calendar days. State it as a date (YYYY-MM-DD)."
+    - "Cover starts on the policy start date plus waiting_period_days calendar days. State that date (YYYY-MM-DD) when asked from when cover applies."
