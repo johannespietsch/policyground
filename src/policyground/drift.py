@@ -36,19 +36,26 @@ def _row(*cells) -> None:
     append_to_table(METRICS, SECTION, "| " + " | ".join(str(c) for c in cells) + " |")
 
 
-def run_eval(tenant: str, probes: list[dict], expect: str, runs: int) -> dict[str, list[float]]:
-    out = {}
+def run_eval(tenant: str, probes: list[dict], expect: str, runs: int) -> tuple[dict, dict]:
+    """Returns ({graph: [score per run]}, {graph: validator stats}). The stats separate
+    validator rejections and forced abstentions (INCIDENTS #10) from wrong answers."""
+    out, stats = {}, {}
     for g in ("rag", "kg"):
         graph = graph_mod.GRAPHS[g]()
-        scores = []
+        scores, st = [], {"answers": 0, "val_rej": 0, "forced_abstain": 0, "wrong_stated": 0}
         for _ in range(runs):
             ok = 0
             for q in probes:
                 s = graph_mod.ask(graph, tenant, q["question"])
-                ok += is_correct(q[expect], s["answer"], s["abstain"])
+                correct = is_correct(q[expect], s["answer"], s["abstain"])
+                ok += correct
+                st["answers"] += 1
+                st["val_rej"] += bool(s.get("validator_problems"))
+                st["forced_abstain"] += bool(s.get("forced_abstain"))
+                st["wrong_stated"] += (not correct and not s["abstain"])
             scores.append(ok / len(probes))
-        out[g] = scores
-    return out
+        out[g], stats[g] = scores, st
+    return out, stats
 
 
 def band(scores: list[float], n_questions: int) -> tuple[float, float]:
@@ -146,7 +153,7 @@ def main() -> None:
 
     if args.what == "eval":
         probes = json.loads(Path(f"data/{args.tenant}/probes-{args.date}.json").read_text())
-        res = run_eval(args.tenant, probes, args.expect, args.runs)
+        res, stats = run_eval(args.tenant, probes, args.expect, args.runs)
         if args.phase == "baseline":
             noise_path.write_text(json.dumps({g: band(v, len(probes)) for g, v in res.items()}))
         noise = json.loads(noise_path.read_text()) if noise_path.exists() else {}
@@ -156,6 +163,10 @@ def main() -> None:
             verdict = ("—" if lo is None or args.phase == "baseline"
                        else "DRIFT (below band)" if mean < lo else "within band" if mean <= hi else "above band")
             band_txt = "—" if lo is None else f"[{lo:.2f}, {hi:.2f}]"
+            st = stats[g]
+            detail = (f"wrong stated {st['wrong_stated']}/{st['answers']}, val-rej {st['val_rej']}, "
+                      f"forced abstain {st['forced_abstain']}")
+            verdict = f"{verdict} ({detail})"
             print(f"{args.phase:10s} {g:3s} runs {[round(x, 2) for x in scores]} mean {mean:.2f} "
                   f"band {band_txt} -> {verdict}")
             _row(now, args.date, args.phase, g, len(probes), args.expect,

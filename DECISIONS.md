@@ -860,3 +860,70 @@ per run.
 
 **Revisit if:** The noise band is so wide that 3 runs are too few. Then use more runs or
 more probes.
+
+---
+
+## D36 Stale-value false positives: fix the prompt, keep the validator strict
+
+**Date:** 2026-10-25
+
+**Context:** INCIDENTS #10. During staleness the model correctly answered from the KG fact,
+but mentioned the stale excerpt value without citing that excerpt, so the strict validator
+(D24) rejected correct answers.
+
+**Options:**
+- (a) A prompt rule: cite an excerpt whenever you mention its value; otherwise don't
+  restate conflicting values.
+- (b) The validator treats values present in shown-but-uncited evidence as warnings.
+- (c) Leave it: abstaining on conflict is safe.
+
+**Chosen:** (a).
+
+**Why:** It fixes the cause (loose citing) without weakening the guardrail. The
+validator's injected-fault results (149/150) stay valid as they are. Measured by the
+2026-10-22 drift run.
+
+**Revisit if:** The model doesn't follow the rule. Then use (b).
+
+---
+
+## D37 Noise band floor: the eval set's sampling error
+
+**Date:** 2026-10-25
+
+**Context:** INCIDENTS #11. Three identical baseline runs gave σ = 0, a zero-width band.
+
+**Options:** (a) σ = max(run σ, √(p(1−p)/n)); (b) 10 baseline runs; (c) both.
+
+**Chosen:** (a), with p clamped to [1/n, 1−1/n] so p = 1.0 doesn't collapse the floor to
+zero again. With n = 15: kg band [0.87, 1.13], rag at 0.80 gives [0.59, 1.01].
+
+**Why:** Standard, free, and honest when runs happen to agree. Re-scoring 2026-10-21 under
+it: rag's drop (0.80 → 0.00) is still drift; kg's dip (→ 0.91) is within the band. That
+matches the diagnosis, since the dip was validator false positives (#10), not wrong
+answers.
+
+**Revisit if:** More probes get added. The floor shrinks with n.
+
+---
+
+## D38 Stable rendering: replay per-entity render choices
+
+**Date:** 2026-10-25
+
+**Context:** INCIDENTS #13. A shared RNG stream meant mutating 15 properties re-worded
+133 others.
+
+**Options:**
+- (a) Store choices per entity and replay them in later snapshots.
+- (b) A per-entity RNG seed.
+- (c) Per-entity seeds plus a full regeneration.
+
+**Chosen:** (a).
+
+**Why:** It keeps the 10-16 corpus and the golden set's semantics: recording reproduced
+10-16 byte-for-byte. It's also realistic, since partners change numbers, not templates.
+(b) would re-roll every doc's layout and deferral and silently invalidate the golden
+labels; (c) would discard the measured history.
+
+**Revisit if:** Templates themselves should change over time (a "partner redesign" event).
