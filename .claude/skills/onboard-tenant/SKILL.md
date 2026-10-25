@@ -72,7 +72,11 @@ facts:                         # every fact key the KG may hold
                                # LLM's fact glossary. Say what the value means.
 deadlines:                     # how a deadline follows from facts (validator + scorer)
   - name: <name>
-    anchor_date: question      # the date stated in the question
+    anchor_date: question      # the deadline starts from a date stated in the question
+    anchor_date_hints: [..]    # recommended with 2+ rules: words that mark this rule's date in
+                               # the question (e.g. [incident, happened]). Only dates in a clause
+                               # containing a hint count, so a date computed with the wrong rule
+                               # can't validate. Without hints every question date counts.
     anchor_time: <time fact>   # optional; omit for date-only deadlines
     anchor_text_hints: [..]    # optional; words marking the anchor-time sentence in docs
     offset: <fact with unit hours|days>
@@ -83,6 +87,11 @@ prompt:
   audience: "..."              # "You answer questions from <audience>."
   subject_noun: "..."          # how to call a subject in text
   variant_noun: "..."          # how to call a variant
+  variant_scope: "..."         # "Facts on a <variant> apply only to <scope>", e.g.
+                               # "claims under that coverage option" (default "that <variant>")
+  rules: ["...", ...]          # extra answer rules for this domain, appended to the prompt.
+                               # Use them for domain behaviour the facts imply, e.g. what to
+                               # say (and not say) when an option is excluded.
 ```
 
 ## Step 2: adapter.py
@@ -141,8 +150,18 @@ terms", but only for inherited values: an override must always be stated in the 
 `expected.kind`, scored deterministically by `policyground/eval/score.py`:
 `datetime` ("YYYY-MM-DD HH:MM"), `date` ("YYYY-MM-DD"), `time` ("HH:MM"),
 `amount` (number, EUR), `duration` ({"value": N, "unit": "days"|"hours"}),
-`phrase` ({"patterns": [regex], "reject": [regex]}), `abstain` (unanswerable: no
-subject_id/evidence_text needed, `evidence_docs: []`, `governing: {"docs": [], "facts": []}`).
+`phrase` ({"patterns": [regex], "reject": [regex]}; no `value` needed), `abstain`
+(unanswerable: no subject_id/evidence_text needed, `evidence_docs: []`,
+`governing: {"docs": [], "facts": []}`).
+
+**Reject patterns** should only catch answers that *contradict* the expected one (e.g.
+"is covered" for an excluded option), not answers that add harmless context. If the
+system shouldn't say something (e.g. a deadline for an excluded option), put that into
+`prompt.rules`, and only then into `reject`.
+
+**Question types** are free labels, with one exception: types starting with `fuzzy_` or
+`hard_` are reported separately and are *not* in the headline score the done-check
+thresholds use. Don't use those prefixes for your core questions.
 
 Unanswerable means asking about something the KG never holds, worded so that it can't
 appear anywhere in the corpus. Include deadline questions (a date in the question) and
@@ -155,9 +174,13 @@ make check-tenant TENANT=<name>
 ```
 
 It validates the spec, seeds through your adapter, checks the golden set (evidence_text
-must be in the governing doc), loads the KG, compares the SQL resolver with the Python
-resolver, ingests the corpus, runs the whole test suite, and runs the LLM eval through
-the knowledge-graph route (correct >= 0.8, abstention >= 0.8).
+must be in the governing doc), clears your tenant's old rows and loads the KG (re-runs
+with changed generated values are therefore safe), compares the SQL resolver with the
+Python resolver, ingests the corpus, runs the whole test suite, and runs the LLM eval
+through the knowledge-graph route (correct >= 0.8, abstention >= 0.8).
+
+The eval step appends a row to `METRICS.md`. That's the measurement record, so leave the
+change in place but **don't commit it**. The parent session records it.
 
 **You're done only when it prints `DONE-CHECK PASSED`.** Not before, and not on your own
 judgement. Every run counts as an attempt and is recorded automatically. Read the failure

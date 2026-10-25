@@ -42,7 +42,7 @@ _NO_CHARGE = re.compile(
 
 
 def is_correct(expected: dict, answer: str, abstain: bool) -> bool:
-    kind, value = expected["kind"], expected["value"]
+    kind, value = expected["kind"], expected.get("value")  # phrase/abstain items have no value
     if kind == "abstain":
         return abstain
     if abstain:

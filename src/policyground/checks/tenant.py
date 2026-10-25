@@ -73,6 +73,21 @@ def check_golden(name: str, golden: list[dict]) -> None:
     print(f"    {len(golden)} questions ({n_abst} unanswerable); every evidence_text found in its governing doc")
 
 
+def reset_tenant_rows(name: str) -> None:
+    """A re-seeded tenant may have different generated values. The version guard (D34)
+    would keep the old version-1 facts, so the DB would silently disagree with kg.json.
+    Non-protected tenants are therefore cleared before every load (eval history stays)."""
+    from policyground.db import connect
+
+    if name in PROTECTED:
+        return
+    with connect("ingest_rw") as conn:
+        for table in ("chunks", "policy_fact", "entity"):
+            n = conn.execute(f"DELETE FROM {table} WHERE tenant = %s", (name,)).rowcount
+            if n:
+                print(f"    cleared {n} old {table} rows for '{name}'")
+
+
 def check_resolver(name: str) -> None:
     from policyground.db import connect
 
@@ -124,6 +139,7 @@ def main() -> None:
         check_golden(name, json.loads((Path("data") / name / "golden.json").read_text()))
 
         step(3, "load the KG (levels and fact keys validated against the spec)")
+        reset_tenant_rows(name)
         run(["uv", "run", "python", "-m", "policyground.kg", "--tenant", name])
 
         step(4, "SQL resolver vs Python resolver")

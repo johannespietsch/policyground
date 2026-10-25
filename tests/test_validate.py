@@ -106,3 +106,40 @@ def test_wrong_window_equal_to_derived_gap_rejected():
     good = "Nothing: free cancellation runs until 48 hours before check-in; they cancel 72 hours before."
     assert validate(q, good, False, cites, facts, []).ok
     assert not validate(q, good.replace("until 48", "until 72"), False, cites, facts, []).ok
+
+
+def test_anchor_date_hints_bind_a_rule_to_its_date():
+    """Two deadline rules (claim window from the incident, waiting period from the policy
+    start): a date computed with the wrong rule must not validate (onboarding finding)."""
+    from policyground.tenant import Spec
+
+    spec = Spec(tenant="t", levels=("a", "b"), subject="b", variant=None,
+                doc_ids={"subject": "{id}", "other": "{level}-{id}"},
+                facts={"claim_window_days": {"type": "int", "unit": "days"},
+                       "waiting_period_days": {"type": "int", "unit": "days"}},
+                deadlines=({"name": "claim", "anchor_date": "question", "offset": "claim_window_days",
+                            "direction": "after", "anchor_date_hints": ["incident"]},
+                           {"name": "cover", "anchor_date": "question", "offset": "waiting_period_days",
+                            "direction": "after", "anchor_date_hints": ["start"]}),
+                keep_together=(), prompt={})
+    q = "The policy started on 2026-11-01 and the incident was on 2026-11-20. By when must the claim be filed?"
+    facts = [{"id": "kg:P:claim_window_days", "key": "claim_window_days", "value": 30},
+             {"id": "kg:P:waiting_period_days", "key": "waiting_period_days", "value": 14}]
+    cites = [f["id"] for f in facts]
+    assert _validate(q, "File by 2026-12-20 (30 days after the incident).", False, cites, facts, [], spec).ok
+    # start + 30 days: a real date, but the claim window doesn't run from the start date
+    assert not _validate(q, "File by 2026-12-01 (30 days).", False, cites, facts, [], spec).ok
+
+
+def test_spec_prompt_scope_and_rules():
+    from policyground.llm import system_kg
+    from policyground.tenant import Spec
+
+    spec = Spec(tenant="t", levels=("a", "b", "c"), subject="b", variant="c",
+                doc_ids={"subject": "{id}", "other": "{level}-{id}"}, facts={}, deadlines=(),
+                keep_together=(), prompt={"variant_noun": "coverage option",
+                                          "variant_scope": "claims under that coverage option",
+                                          "rules": ["For an excluded option, give no deadline."]})
+    text = system_kg(spec)
+    assert "apply only to\n  claims under that coverage option" in text
+    assert text.endswith("- For an excluded option, give no deadline.")

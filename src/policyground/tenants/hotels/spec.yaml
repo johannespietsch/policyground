@@ -45,3 +45,4 @@ prompt:
   audience: "customer-support agents about hotel policies"
   subject_noun: property
   variant_noun: rate plan
+  variant_scope: bookings on that rate plan   # "Facts on a rate plan apply only to <scope>"

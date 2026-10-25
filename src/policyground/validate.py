@@ -131,12 +131,13 @@ def _backed_values(question: str, cited_facts: list[dict], cited_text: str, spec
         windows = {int(v) for v in fact_values([rule["offset"]])} | _durations(cited_text, unit)
         step = timedelta(hours=1) if unit == "hours" else timedelta(days=1)
         sign = -1 if rule["direction"] == "before" else 1
+        rule_dates = _anchor_dates(question, rule.get("anchor_date_hints", []))
         if rule.get("anchor_time"):
             anchors = (fact_values([rule["anchor_time"]])
                        | _anchor_times(cited_text, rule.get("anchor_text_hints", [])))
         else:
             anchors = {None}
-        for d in q_dates:
+        for d in rule_dates:
             for t in anchors:
                 base = datetime.fromisoformat(f"{d} {t or '00:00'}")
                 for w in windows:
@@ -157,6 +158,20 @@ def _backed_values(question: str, cited_facts: list[dict], cited_text: str, spec
     for u in units:
         out[u] = offsets[u] | _durations(question, u) | derived[u]
         out[f"window_{u}"] = offsets[u]
+    return out
+
+
+def _anchor_dates(question: str, hints: list[str]) -> set[str]:
+    """The question dates a deadline rule may start from. Without hints: every date in
+    the question. With anchor_date_hints (e.g. [incident, happened]): only dates in a
+    clause containing a hint, so with two rules (claim window from the incident, waiting
+    period from the policy start) a date computed with the wrong rule can't validate."""
+    if not hints:
+        return normalize.dates(question)
+    out = set()
+    for clause in re.split(r"[,;.?!]|\band\b|\bbut\b", question):
+        if any(h in clause.lower() for h in hints):
+            out |= normalize.dates(clause)
     return out
 
 

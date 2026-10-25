@@ -2,8 +2,9 @@
 
   spec.yaml   levels, subject, variant, doc naming, facts (type/unit/meaning), deadlines,
               chunking, prompt wording. Read by the core; no code.
-  adapter.py  generate(seed) -> kg dict; render(kg, entity_id, chooser) -> markdown;
-              golden(kg, manifest, seed) -> questions. Everything that needs code.
+  adapter.py  generate(seed, snapshot_date) -> kg dict; render(data, chooser) ->
+              ({doc_id: markdown}, manifest); golden(data, manifest, seed) -> questions.
+              Everything that needs code.
 See .claude/skills/onboard-tenant/SKILL.md for how to add one.
 """
 
@@ -81,6 +82,8 @@ def _validate(raw: dict, name: str) -> Spec:
         need(d["direction"] in ("before", "after"), f"deadline {d['name']}: direction before|after")
         need(d.get("anchor_time") in (None, *[k for k, f in raw["facts"].items() if f["type"] == "time"]),
              f"deadline {d['name']}: anchor_time must be a time fact")
+        need(isinstance(d.get("anchor_date_hints", []), list),
+             f"deadline {d['name']}: anchor_date_hints must be a list of words")
     return Spec(tenant=name, levels=levels, subject=raw["subject"], variant=variant, doc_ids=raw["doc_ids"],
                 facts=raw["facts"], deadlines=tuple(raw.get("deadlines", [])),
                 keep_together=tuple(raw.get("chunking", {}).get("keep_together", [])),

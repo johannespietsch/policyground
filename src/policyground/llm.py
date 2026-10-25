@@ -26,7 +26,7 @@ Use ONLY the policy excerpts provided in the user message. Each excerpt has an I
 - If the excerpts don't contain enough information to answer, set abstain to true \
 and say briefly what is missing. Never guess, and never use outside knowledge.
 - When the question asks for a deadline, give the exact date and time it falls on.
-- Keep the answer to one or two sentences."""
+- Keep the answer to one or two sentences.{extra}"""
 
 
 class Answer(BaseModel):
@@ -65,8 +65,10 @@ def system_kg(spec) -> str:
     reproduces the M2-M4 prompt; only nouns, audience and the fact glossary vary."""
     subj = spec.prompt.get("subject_noun", spec.subject)
     var = spec.prompt.get("variant_noun", spec.variant)
-    variant_rule = (f" Facts on a {var} apply only to\n  bookings on that {var} and override the {subj}'s facts "
+    scope = spec.prompt.get("variant_scope", f"that {var}")
+    variant_rule = (f" Facts on a {var} apply only to\n  {scope} and override the {subj}'s facts "
                     f"for them." if spec.variant else "")
+    extra = "".join(f"\n- {r}" for r in spec.prompt.get("rules", []))
     glossary = "\n".join(f"- {k}: {f['meaning']}" for k, f in spec.facts.items() if f.get("meaning"))
     with_time = any(d.get("anchor_time") for d in spec.deadlines)
     return f"""You answer questions from {spec.prompt.get("audience", "support agents")}.
@@ -89,7 +91,7 @@ Rules:
 - If they don't contain the information asked for, set abstain to true and say what
   is missing.
 - When the question asks for a deadline, compute and state the exact date{" and time" if with_time else ""}.
-- Keep the answer to one or two sentences."""
+- Keep the answer to one or two sentences.{extra}"""
 
 
 def answer_with_facts(spec, question: str, subject_name: str, facts: list[tuple[str, str]],

@@ -5,3 +5,4 @@ data/
 corpus/
 airflow/.venv/
 airflow/home/
+.claude/worktrees/

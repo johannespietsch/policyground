@@ -61,3 +61,10 @@ def test_append_to_table_targets_its_own_section(tmp_path):
     append_to_table(p, "## A", "| 1b |")
     append_to_table(p, "## B", "| 2b |")
     assert p.read_text() == "## A\n\n| a |\n|---|\n| 1 |\n| 1b |\n\n## B\n\n| b |\n|---|\n| 2 |\n| 2b |\n"
+
+
+def test_phrase_without_value_key():
+    """Onboarding finding: phrase items have no `value`; the scorer used to KeyError."""
+    exp = {"kind": "phrase", "patterns": [r"not covered|excluded"], "reject": [r"\d{4}-\d{2}-\d{2}"]}
+    assert is_correct(exp, "Baggage is excluded on this policy, so it is not covered.", abstain=False)
+    assert not is_correct(exp, "Not covered; file by 2026-12-01 anyway.", abstain=False)
