@@ -21,57 +21,58 @@ from psycopg.types.json import Jsonb
 
 from policyground.db import connect
 from policyground.eval.metrics_md import append_to_table
-from policyground.kg.lookup import property_context
+from policyground import tenant as tenants
+from policyground.kg.lookup import subject_context
 from policyground.retrieve import search
-from policyground.tenants.hotels.kg import KG
-from policyground.tenants.hotels.render import FEE_TEXT
 
 
-def surface_text(q: dict, kg: KG) -> str:
-    """Text a chunk must contain to actually carry the answer."""
-    pol = kg.resolve("property", q["property_id"])
-    kind, value = q["expected"]["kind"], q["expected"]["value"]
-    if kind == "no_free_cancellation":
-        return "non-refundable"
-    if kind in ("datetime", "no_charge"):
-        return f"{pol['cancel_window_hours']['value']} hours"
-    if kind == "time":
-        return value
-    if kind == "eur":
-        return f"EUR {value}"
-    if kind == "fee":
-        return FEE_TEXT[value]
-    raise ValueError(kind)
+def subject_of(q: dict) -> str | None:
+    """Golden items name their subject as subject_id (any tenant) or property_id (hotels, M1-M5)."""
+    return q.get("subject_id", q.get("property_id"))
+
+
+def needle(q: dict, data: dict, tenant: str) -> str | None:
+    """Text a chunk must contain to actually carry the answer: the item's evidence_text,
+    else the tenant adapter's evidence_text hook, else None (fact@5 not measured)."""
+    if q.get("evidence_text"):
+        return q["evidence_text"]
+    hook = getattr(tenants.adapter(tenant), "evidence_text", None)
+    return hook(q, data) if hook else None
 
 
 def evaluate(tenant: str, chunker: str, embedder: str, snapshot_date: str | None = None,
              root: Path = Path(".")) -> dict:
-    kg = KG.load(root / f"data/{tenant}/kg.json")
+    data = json.loads((root / f"data/{tenant}/kg.json").read_text())
     golden = [q for q in json.loads((root / f"data/{tenant}/golden.json").read_text())
-              if q["expected"]["kind"] != "abstain"]
-    manifest = json.loads((root / f"data/{tenant}/manifest-{kg.snapshot_date}.json").read_text())
-    lineage = {q["property_id"]: property_context(tenant, q["property_id"])[2] for q in golden}
-    # Only where the property doc states the rule itself; a deferring doc can't hold both.
-    nr = [q for q in golden if q["expected"]["kind"] == "no_free_cancellation"
-          and not manifest[q["property_id"]]["cancel_by_reference"]]
+              if q["expected"]["kind"] != "abstain" and subject_of(q)]
+    lineage = {subject_of(q): subject_context(tenant, subject_of(q))[2] for q in golden}
+    # Rule + exception in one chunk: only for golden items that declare both texts.
+    together_qs = [q for q in golden if q.get("rule_text") and q.get("exception_text")]
+    hook = getattr(tenants.adapter(tenant), "rule_and_exception", None)
+    if hook and not together_qs:
+        together_qs = [q for q in golden if hook(q, data, root)]
 
-    doc_hit = fact_un = fact_f = together = 0
+    doc_hit = fact_un = fact_f = together = measured = 0
     for q in golden:
-        needle = surface_text(q, kg).lower()
+        text = needle(q, data, tenant)
         gov = set(q["governing"]["docs"])
         kw = {"chunker": chunker, "embedder": embedder, "snapshot_date": snapshot_date}
         un = search(tenant, q["question"], **kw)
-        fi = search(tenant, q["question"], doc_ids=lineage[q["property_id"]], **kw)
+        fi = search(tenant, q["question"], doc_ids=lineage[subject_of(q)], **kw)
         docs = {c.chunk_id.split("#")[0] for c in un}
         doc_hit += all(d in docs for d in q["evidence_docs"])
-        fact_un += any(c.chunk_id.split("#")[0] in gov and needle in c.text.lower() for c in un)
-        fact_f += any(c.chunk_id.split("#")[0] in gov and needle in c.text.lower() for c in fi)
-        if q in nr:
-            window = f"{kg.resolve('property', q['property_id'])['cancel_window_hours']['value']} hours"
-            together += any(window in c.text and "non-refundable" in c.text.lower() for c in fi)
+        if text:
+            measured += 1
+            fact_un += any(c.chunk_id.split("#")[0] in gov and text.lower() in c.text.lower() for c in un)
+            fact_f += any(c.chunk_id.split("#")[0] in gov and text.lower() in c.text.lower() for c in fi)
+        if q in together_qs:
+            rule, exc = (q.get("rule_text"), q.get("exception_text")) if q.get("rule_text") else hook(q, data, root)
+            together += any(rule.lower() in c.text.lower() and exc.lower() in c.text.lower() for c in fi)
     n = len(golden)
-    return {"n": n, "doc@5": doc_hit / n, "fact@5_unfiltered": fact_un / n,
-            "fact@5_filtered": fact_f / n, "nr_together": together, "nr_n": len(nr)}
+    return {"n": n, "doc@5": doc_hit / n,
+            "fact@5_unfiltered": fact_un / measured if measured else None,
+            "fact@5_filtered": fact_f / measured if measured else None,
+            "nr_together": together, "nr_n": len(together_qs)}
 
 
 def slice_rows(tenant: str, chunker: str, embedder: str, snapshot_date: str) -> int:
@@ -91,6 +92,10 @@ def record(tenant: str, chunker: str, embedder: str, snapshot_date: str, source:
              slice_rows(tenant, chunker, embedder, snapshot_date), Jsonb(m)))
 
 
+def _f(x) -> str:
+    return "—" if x is None else f"{x:.2f}"
+
+
 def comparison_table(tenant: str = "hotels") -> None:
     with connect("api_ro") as conn:
         combos = conn.execute("SELECT DISTINCT chunker, embedder FROM chunks WHERE tenant = %s ORDER BY 1, 2",
@@ -100,13 +105,13 @@ def comparison_table(tenant: str = "hotels") -> None:
         m = evaluate(tenant, chunker, embedder)
         rows.append((chunker, embedder, m))
         print(f"{chunker:14s} {embedder:18s} doc@5 {m['doc@5']:.2f}  fact@5 unfiltered "
-              f"{m['fact@5_unfiltered']:.2f}  filtered {m['fact@5_filtered']:.2f}  "
-              f"NR rule+exception together {m['nr_together']}/{m['nr_n']}")
+              f"{_f(m['fact@5_unfiltered'])}  filtered {_f(m['fact@5_filtered'])}  "
+              f"rule+exception together {m['nr_together']}/{m['nr_n']}")
 
     for chunker, embedder, m in rows:
         append_to_table(Path("METRICS.md"), "## Retrieval: hit@5 per chunker × embedder",
                         f"| {date.today()} | {chunker} | {embedder} | {m['n']} | {m['doc@5']:.2f} "
-                        f"| {m['fact@5_unfiltered']:.2f} | {m['fact@5_filtered']:.2f} "
+                        f"| {_f(m['fact@5_unfiltered'])} | {_f(m['fact@5_filtered'])} "
                         f"| {m['nr_together']}/{m['nr_n']} |")
 
 

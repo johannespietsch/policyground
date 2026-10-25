@@ -1,6 +1,6 @@
 """`POST /ask {tenant, question}` -> cited answer.  `GET /metrics` for Prometheus.
 
-Observability (PLAN M5): one JSON log line per question (request_id, property_id,
+Observability (PLAN M5): one JSON log line per question (request_id, subject_id,
 route, outcome, tokens, validator problems), Prometheus metrics with low-cardinality
 labels only (D41), and a Phoenix trace per question tagged with the same request_id.
 """
@@ -64,7 +64,7 @@ def _abstain_reason(state) -> str | None:
         return "step_limit"
     if state.get("forced_abstain"):
         return "validator"
-    if not state.get("property_id"):
+    if not state.get("subject_id"):
         return "unresolved_property"
     return "model"
 
@@ -82,7 +82,7 @@ def ask_endpoint(req: AskRequest) -> AskResponse:
         raise
     seconds = time.perf_counter() - t0
 
-    route = "kg" if state.get("property_id") else "unresolved"
+    route = "kg" if state.get("subject_id") else "unresolved"
     reason = _abstain_reason(state)
     tin, tout = state.get("input_tokens", 0), state.get("output_tokens", 0)
     cost = (tin * PRICE_IN_PER_MTOK + tout * PRICE_OUT_PER_MTOK) / 1e6
@@ -99,7 +99,7 @@ def ask_endpoint(req: AskRequest) -> AskResponse:
         metrics.ABSTENTIONS.labels(req.tenant, reason).inc()
 
     logs.event(log, "ask", tenant=req.tenant, question=req.question,
-               property_id=state.get("property_id"), route=route,
+               subject_id=state.get("subject_id"), route=route,
                outcome="abstained" if reason else "answered", abstain_reason=reason,
                attempts=state.get("attempts", 0), validator_problems=state.get("validator_problems") or [],
                citations=state.get("citations", []), input_tokens=tin, output_tokens=tout,

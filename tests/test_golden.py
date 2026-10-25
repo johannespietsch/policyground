@@ -59,7 +59,7 @@ def test_governing_doc_states_the_fact():
     """The governing doc must contain the fact text, or 'unsupported' and fact@5 are wrong."""
     from pathlib import Path
     import json as _json
-    from policyground.eval.retrieval import surface_text
+    from policyground.eval.retrieval import needle
     from policyground.tenants.hotels.kg import KG
 
     if not Path("data/hotels/golden.json").exists():
@@ -71,4 +71,5 @@ def test_governing_doc_states_the_fact():
         # Golden answers follow the current truth (D33), stated in the newest snapshot.
         latest = max(Path("corpus/hotels").iterdir())
         text = "\n".join((latest / f"{d}.md").read_text() for d in q["governing"]["docs"])
-        assert surface_text(q, kg).lower() in text.lower(), q["id"]
+        data = _json.loads(Path("data/hotels/kg.json").read_text())
+        assert needle(q, data, "hotels").lower() in text.lower(), q["id"]

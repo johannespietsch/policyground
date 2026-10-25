@@ -16,6 +16,7 @@ from datetime import date, timedelta
 from pathlib import Path
 
 from policyground.eval.metrics_md import append_to_table
+from policyground.tenant import spec as tenant_spec
 from policyground.validate import validate
 
 ISO = re.compile(r"\b(\d{4})-(\d{2})-(\d{2})\b")
@@ -74,7 +75,8 @@ def main() -> None:
     base = [r for r in run["results"] if r["correct"] and not r["abstain"] and r["attempts"]]
 
     def check(r, answer, cites):
-        return validate(r["question"], answer, False, cites, r["facts"], r["chunk_texts"]).ok
+        return validate(r["question"], answer, False, cites, r["facts"], r["chunk_texts"],
+                        tenant_spec(run["tenant"])).ok
 
     false_pos = sum(not check(r, r["answer"], r["raw_citations"]) for r in base)
     rows = {}

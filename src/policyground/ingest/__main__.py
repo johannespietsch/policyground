@@ -11,6 +11,7 @@ import hashlib
 from pathlib import Path
 
 from policyground.config import PRODUCTION
+from policyground.tenant import spec as tenant_spec
 from policyground.db import connect
 from policyground.ingest.chunkers import CHUNKERS
 from policyground.ingest.embed import EMBEDDERS, embed
@@ -32,7 +33,7 @@ def main() -> None:
 
     rows = []
     for path in docs:
-        for i, text in enumerate(CHUNKERS[args.chunker](path.read_text())):
+        for i, text in enumerate(CHUNKERS[args.chunker](path.read_text(), tenant_spec(args.tenant))):
             rows.append((path.stem, i, hashlib.sha256(text.encode()).hexdigest(), text))
     vectors = embed(args.embedder, [r[3] for r in rows])
 

@@ -38,7 +38,9 @@ SNAPSHOT_AGE = Gauge("policyground_newest_snapshot_age_seconds",
 EXPORTER_ERRORS = Counter("policyground_exporter_errors_total", "Failed health computations", ["reason"])
 
 
-TENANTS = ["hotels"]  # known tenants; M6 adds the second
+from policyground.tenant import known as _known_tenants
+
+TENANTS = _known_tenants()  # every tenant with a spec.yaml (D44)
 
 
 def init_series(*names: str) -> None:

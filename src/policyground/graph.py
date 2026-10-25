@@ -14,7 +14,8 @@ from langgraph.errors import GraphRecursionError
 from langgraph.graph import END, START, StateGraph
 
 from policyground.config import BASELINE
-from policyground.kg.lookup import match_property, property_context
+from policyground import tenant as tenants
+from policyground.kg.lookup import match_subject, subject_context
 from policyground.llm import answer_question, answer_with_facts
 from policyground.retrieve import search
 from policyground.validate import validate as run_validator
@@ -31,8 +32,8 @@ RECURSION_LIMIT = 20
 class State(TypedDict, total=False):
     tenant: str
     question: str
-    property_id: str | None
-    property_name: str
+    subject_id: str | None
+    subject_name: str
     match_reason: str
     facts: list[dict]
     lineage_docs: list[str]
@@ -100,25 +101,28 @@ def build_rag():
 # ---- kg graph (M2)
 
 def route(state: State) -> State:
-    m = match_property(state["tenant"], state["question"])
-    return {"property_id": m.property_id, "match_reason": m.reason}
+    m = match_subject(state["tenant"], state["question"])
+    return {"subject_id": m.subject_id, "match_reason": m.reason}
 
 
 def abstain_unresolved(state: State) -> State:
-    """No (unique) property: ask rather than guess. No LLM call."""
-    return {"answer": f"Which property do you mean? ({state['match_reason']})",
+    """No (unique) subject: ask rather than guess. No LLM call."""
+    noun = tenants.spec(state["tenant"]).prompt.get("subject_noun", "item")
+    return {"answer": f"Which {noun} do you mean? ({state['match_reason']})",
             "citations": [], "abstain": True, "chunks": [], "facts": [],
             "input_tokens": 0, "output_tokens": 0}
 
 
 def kg_lookup(state: State) -> State:
-    name, facts, lineage = property_context(state["tenant"], state["property_id"])
+    spec = tenants.spec(state["tenant"])
+    name, facts, lineage = subject_context(state["tenant"], state["subject_id"])
+    subj, var = spec.prompt.get("subject_noun", spec.subject), spec.prompt.get("variant_noun", spec.variant)
     rendered = []
     for f in facts:
-        scope = "this property" if f.entity_id == state["property_id"] else f"rate plan {f.entity_id}"
+        scope = f"this {subj}" if f.entity_id == state["subject_id"] else f"{var} {f.entity_id}"
         rendered.append({"id": f.fact_id, "entity_id": f.entity_id, "key": f.key, "value": f.value,
                          "text": f"{f.key} = {f.value} (applies to {scope}; set at {f.source_type} level)"})
-    return {"property_name": name, "facts": rendered, "lineage_docs": lineage}
+    return {"subject_name": name, "facts": rendered, "lineage_docs": lineage}
 
 
 def kg_retrieve(state: State) -> State:
@@ -129,7 +133,7 @@ def kg_retrieve(state: State) -> State:
 def kg_answer(state: State) -> State:
     rejected = state.get("validator_problems") or []
     return _answer_update(state, answer_with_facts(
-        state["question"], state["property_name"],
+        tenants.spec(state["tenant"]), state["question"], state["subject_name"],
         [(f["id"], f["text"]) for f in state["facts"]],
         [(c["id"], c["text"]) for c in state["chunks"]],
         feedback=rejected[-1] if rejected else None))
@@ -137,7 +141,8 @@ def kg_answer(state: State) -> State:
 
 def validate(state: State) -> State:
     v = run_validator(state["question"], state["answer"], state["abstain"],
-                      state["raw_citations"], state["facts"], state["chunks"])
+                      state["raw_citations"], state["facts"], state["chunks"],
+                      tenants.spec(state["tenant"]))
     update: State = {"validator_ok": v.ok, "validator_warnings": v.warnings}
     if not v.ok:
         update["validator_problems"] = (state.get("validator_problems") or []) + [v.problems]
@@ -154,7 +159,7 @@ def after_validate(state: State) -> str:
 
 def abstain_unvalidated(state: State) -> State:
     """Every allowed attempt failed validation: refuse rather than pass it on."""
-    return {"answer": "I can't confirm this from the policy data; please check the property's terms directly.",
+    return {"answer": "I can't confirm this from the policy data; please check the terms directly.",
             "citations": [], "abstain": True, "forced_abstain": True}
 
 
@@ -168,7 +173,7 @@ def build_kg():
     g.add_node("validate", validate)
     g.add_node("abstain_unvalidated", abstain_unvalidated)
     g.add_edge(START, "route")
-    g.add_conditional_edges("route", lambda s: "kg_lookup" if s["property_id"] else "abstain_unresolved")
+    g.add_conditional_edges("route", lambda s: "kg_lookup" if s["subject_id"] else "abstain_unresolved")
     g.add_edge("abstain_unresolved", END)
     g.add_edge("kg_lookup", "retrieve")
     g.add_edge("retrieve", "answer")

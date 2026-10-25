@@ -1,7 +1,14 @@
 """Validator behaviour on hand-built faults (D23). The measured catch rate over real
 answers comes from `python -m policyground.eval.faults`."""
 
-from policyground.validate import validate
+from policyground.tenant import spec
+from policyground.validate import validate as _validate
+
+SPEC = spec("hotels")
+
+
+def validate(*args):
+    return _validate(*args, SPEC)
 
 Q = "A guest checks in at Meridian Urban Munich Central on 2026-12-17. Until when can they cancel free of charge?"
 FACTS = [

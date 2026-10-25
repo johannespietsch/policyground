@@ -13,7 +13,7 @@ def test_structural_keeps_exception_with_rule_and_adds_header():
     doc = ("# Hotel X\n\nProperty ID: P1 · Brand: B · Chain: C\n\n## Overview\n\nNice.\n\n"
            "## Cancellation\n\nFree until 48 hours before.\n\n## Pets\n\nNo pets.\n\n"
            "## Rate plans\n\n- **Non-Refundable Rate** — no refund.\n")
-    chunks = structural(doc)
+    chunks = structural(doc, ("Cancellation", "Rate plans"))
     assert all(c.startswith("# Hotel X\n\nProperty ID: P1") for c in chunks)
     booking = [c for c in chunks if "48 hours" in c]
     assert len(booking) == 1 and "Non-Refundable" in booking[0]

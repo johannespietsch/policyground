@@ -36,6 +36,7 @@ deadlines:
     anchor_time: check_in_time
     offset: cancel_window_hours
     direction: before
+    anchor_text_hints: [check in, check-in, arrival, rooms are available]   # find the anchor time in text
 
 chunking:
   keep_together: [Cancellation, Rate plans]   # the rule and its exception stay in one chunk

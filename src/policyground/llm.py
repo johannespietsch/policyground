@@ -60,21 +60,25 @@ def answer_question(question: str, excerpts: list[tuple[str, str]]) -> LLMResult
     context = "\n\n".join(f'<excerpt id="{cid}">\n{text}\n</excerpt>' for cid, text in excerpts)
     return _call(SYSTEM, f"{context}\n\nQuestion: {question}")
 
-SYSTEM_KG = """You answer questions from customer-support agents about hotel policies.
+def system_kg(spec) -> str:
+    """The kg-graph system prompt, built from the tenant spec (D44). For hotels this
+    reproduces the M2-M4 prompt; only nouns, audience and the fact glossary vary."""
+    subj = spec.prompt.get("subject_noun", spec.subject)
+    var = spec.prompt.get("variant_noun", spec.variant)
+    variant_rule = (f" Facts on a {var} apply only to\n  bookings on that {var} and override the {subj}'s facts "
+                    f"for them." if spec.variant else "")
+    glossary = "\n".join(f"- {k}: {f['meaning']}" for k, f in spec.facts.items() if f.get("meaning"))
+    with_time = any(d.get("anchor_time") for d in spec.deadlines)
+    return f"""You answer questions from {spec.prompt.get("audience", "support agents")}.
 
 You get two kinds of evidence in the user message, each with an ID:
 - <fact> elements: the authoritative policy from the knowledge graph, already resolved
-  for this property (most specific level wins). Facts on a rate plan apply only to
-  bookings on that rate plan and override the property's facts for them.
+  for this {subj} (most specific level wins).{variant_rule}
 - <excerpt> elements: policy text, for wording and context. If an excerpt disagrees
   with a fact, the fact wins.
 
 Fact keys:
-- cancel_window_hours: free cancellation until this many hours before check-in on the
-  arrival day (check-in time = check_in_time).
-- late_cancel_fee: what is charged after the window (first_night, full_stay, 50_percent).
-- refundable = false on a rate plan: that booking can never be cancelled free of charge.
-- pet_fee_eur: per night, only relevant if pets_allowed is true.
+{glossary}
 
 Rules:
 - Use ONLY the facts and excerpts given. Never guess or use outside knowledge.
@@ -84,23 +88,24 @@ Rules:
   the facts.
 - If they don't contain the information asked for, set abstain to true and say what
   is missing.
-- When the question asks for a deadline, compute and state the exact date and time.
+- When the question asks for a deadline, compute and state the exact date{" and time" if with_time else ""}.
 - Keep the answer to one or two sentences."""
 
 
-def answer_with_facts(question: str, property_name: str, facts: list[tuple[str, str]],
+def answer_with_facts(spec, question: str, subject_name: str, facts: list[tuple[str, str]],
                       excerpts: list[tuple[str, str]], feedback: list[str] | None = None) -> LLMResult:
     """facts: (fact_id, rendered "key = value (applies to ...)") pairs."""
     fact_xml = "\n".join(f'<fact id="{fid}">{text}</fact>' for fid, text in facts)
     excerpt_xml = "\n\n".join(f'<excerpt id="{cid}">\n{text}\n</excerpt>' for cid, text in excerpts)
-    content = (f"Property: {property_name}\n\n<facts>\n{fact_xml}\n</facts>\n\n"
+    noun = spec.prompt.get("subject_noun", spec.subject)
+    content = (f"{noun[0].upper() + noun[1:]}: {subject_name}\n\n<facts>\n{fact_xml}\n</facts>\n\n"
                f"<excerpts>\n{excerpt_xml}\n</excerpts>\n\nQuestion: {question}")
     if feedback:
         content += ("\n\nA previous answer was rejected by an automatic checker:\n"
                     + "\n".join(f"- {p}" for p in feedback)
                     + "\nAnswer again. Every date, time, amount and number of hours must come "
                       "from evidence you cite. If you can't back it, abstain.")
-    return _call(SYSTEM_KG, content)
+    return _call(system_kg(spec), content)
 
 
 def _call(system: str, content: str) -> LLMResult:

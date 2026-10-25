@@ -25,6 +25,7 @@ from pathlib import Path
 import numpy as np
 
 from policyground.config import PRODUCTION
+from policyground.tenant import spec as tenant_spec
 from policyground.db import connect
 from policyground.ingest.chunkers import CHUNKERS
 from policyground.ingest.embed import EMBEDDERS, embed
@@ -48,7 +49,7 @@ def chunk(args) -> None:
     n = 0
     with open(out / "chunks.jsonl", "w") as f:
         for path in docs:
-            for i, text in enumerate(CHUNKERS[args.chunker](path.read_text())):
+            for i, text in enumerate(CHUNKERS[args.chunker](path.read_text(), tenant_spec(args.tenant))):
                 f.write(json.dumps({"doc_id": path.stem, "chunk_index": i, "text": text,
                                     "chunk_hash": hashlib.sha256(text.encode()).hexdigest()}) + "\n")
                 n += 1

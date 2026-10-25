@@ -11,6 +11,13 @@ Rules (deliberately simple; known leniency is noted):
   fee       not abstained and the answer names the expected late-cancellation fee.
   no_charge not abstained and the answer says nothing is charged.
   abstain   the `abstain` flag is set. The flag governs, not the wording.
+
+Generic kinds for any tenant (D44); the hotel kinds above remain as they were:
+  date      "YYYY-MM-DD": the date appears.
+  amount    number (EUR): the amount appears as a EUR amount ("eur" is the same).
+  duration  {"value": N, "unit": "days"|"hours"}: "N days" / "N-day" appears.
+  phrase    {"patterns": [regex...], "reject": [regex...]}: some pattern matches and
+            no reject pattern does (e.g. "not covered" for an exclusion).
 """
 
 from __future__ import annotations
@@ -45,8 +52,16 @@ def is_correct(expected: dict, answer: str, abstain: bool) -> bool:
         return d in normalize.dates(answer) and t in normalize.times(answer)
     if kind == "time":
         return value in normalize.times(answer)
-    if kind == "eur":
+    if kind in ("eur", "amount"):
         return float(value) in normalize.eur_amounts(answer)
+    if kind == "date":
+        return value in normalize.dates(answer)
+    if kind == "duration":
+        unit = {"days": r"days?", "hours": r"(?:hours?|hrs?)"}[value["unit"]]
+        return bool(re.search(rf"\b{int(value['value'])}\s*(?:-\s*)?{unit}\b", answer, re.I))
+    if kind == "phrase":
+        ok = any(re.search(p, answer, re.I) for p in expected["patterns"])
+        return ok and not any(re.search(p, answer, re.I) for p in expected.get("reject", []))
     if kind == "no_free_cancellation":
         return bool(_NO_FREE.search(answer))
     if kind == "fee":

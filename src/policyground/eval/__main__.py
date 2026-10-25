@@ -67,7 +67,7 @@ def main() -> None:
             "hit5": all(d in retrieved_docs for d in q["evidence_docs"]) if q["evidence_docs"] else None,
             "correct": is_correct(q["expected"], state["answer"], state["abstain"]),
             "supported": is_supported(q["governing"], state["citations"]),
-            "property_id_resolved": state.get("property_id"),
+            "subject_id_resolved": state.get("subject_id"),
             "attempts": state.get("attempts", 0),
             "validator_problems": state.get("validator_problems") or [],
             "validator_warnings": state.get("validator_warnings") or [],
