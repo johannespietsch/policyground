@@ -52,6 +52,7 @@ Every column is defined here before it has numbers (PLAN §7). Rows are appended
 | 20261022-212452 | 11e291a | M2 | hotels | naive-800 | bge-small-en-v1.5 | claude-haiku-5-5 | 30 | 1.00 | 1.00 | 0.00 | 1.00 | 0.00034 | 2.2 | 5.3 | kg | 0.00 | 5/5 | 0.00 | 0.00 | 8/8 |
 | 20261023-154620 | 7cfdb74 | M1 | hotels | naive-800 | bge-small-en-v1.5 | claude-haiku-5-5 | 30 | 0.76 | 1.00 | 0.24 | 0.72 | 0.00034 | 1.7 | 5.3 | rag | 0.04 | 4/5 | — | — | 2/8 |
 | 20261023-154802 | 7cfdb74 | M2 | hotels | structural-v1 | e5-base-v2 | claude-haiku-5-5 | 30 | 1.00 | 1.00 | 0.00 | 0.96 | 0.00034 | 2.1 | 3.4 | kg | 0.00 | 5/5 | 0.03 | 0.03 | 8/8 |
+| 20261025-111248 | 7c15943 | M2 | hotels | structural-v1 | e5-base-v2 | claude-haiku-5-5 | 30 | 1.00 | 1.00 | 0.00 | 0.96 | 0.00036 | 2.2 | 5.7 | kg | 0.00 | 5/5 | 0.00 | 0.00 | 8/8 |
 
 ## Validator fault injection
 
@@ -141,3 +142,12 @@ Written by `python -m policyground.drift` (D35). One row per measurement.
 | 2026-10-23 14:26 | 2026-10-21 | refreshed | — | — | — | — | — | — | — | 0.000 (0) |  |
 | 2026-10-23 14:46 | 2026-10-21 | refreshed | rag | 15 | expected | 0.87 / 0.80 / 0.87 | 0.84 | [0.80, 0.80] | above band |  |  |
 | 2026-10-23 14:46 | 2026-10-21 | refreshed | kg | 15 | expected | 1.00 / 1.00 / 1.00 | 1.00 | [1.00, 1.00] | within band |  |  |
+| 2026-10-25 09:57 | 2026-10-22 | baseline | rag | 15 | expected_old | 0.73 / 0.80 / 0.73 | 0.76 | [0.53, 0.98] | — (wrong stated 0/45, val-rej 0, forced abstain 0) |  |  |
+| 2026-10-25 09:57 | 2026-10-22 | baseline | kg | 15 | expected_old | 1.00 / 1.00 / 1.00 | 1.00 | [0.87, 1.13] | — (wrong stated 0/45, val-rej 0, forced abstain 0) |  |  |
+| 2026-10-25 10:02 | 2026-10-22 | stale | — | — | — | — | — | — | — | 0.100 (15) |  |
+| 2026-10-25 10:02 | 2026-10-22 | stale | rag | 15 | expected | 0.00 / 0.00 / 0.00 | 0.00 | [0.53, 0.98] | DRIFT (below band) (wrong stated 36/45, val-rej 0, forced abstain 0) |  |  |
+| 2026-10-25 10:02 | 2026-10-22 | stale | kg | 15 | expected | 1.00 / 1.00 / 1.00 | 1.00 | [0.87, 1.13] | within band (wrong stated 0/45, val-rej 1, forced abstain 0) |  |  |
+| 2026-10-25 10:08 | 2026-10-22 | refreshed | — | — | — | — | — | — | — |  | 5.1 min |
+| 2026-10-25 10:08 | 2026-10-22 | refreshed | — | — | — | — | — | — | — | 0.000 (0) |  |
+| 2026-10-25 10:08 | 2026-10-22 | refreshed | rag | 15 | expected | 0.93 / 0.93 / 0.93 | 0.93 | [0.53, 0.98] | within band (wrong stated 0/45, val-rej 0, forced abstain 0) |  |  |
+| 2026-10-25 10:08 | 2026-10-22 | refreshed | kg | 15 | expected | 1.00 / 1.00 / 1.00 | 1.00 | [0.87, 1.13] | within band (wrong stated 0/45, val-rej 0, forced abstain 0) |  |  |

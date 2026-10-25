@@ -359,7 +359,11 @@ in about 9% of kg answers. After the refresh (no stale excerpts): kg 1.00 in all
 So on this data the validator's real cost is false positives under staleness, and its
 injected-fault catch rate (149/150) is still the only evidence it catches real errors.
 
-**Fix:** Pending decision (see the decision raised in chat, 2026-10-23).
+**Fix (D36, 2026-10-25):** A prompt rule: cite an excerpt whenever you mention its value,
+otherwise don't restate conflicting excerpt values. The validator stays strict. Measured
+in a second staleness window (mutation 2026-10-22), kg stale phase: **1.00 / 1.00 / 1.00**
+(before: 0.87 / 0.87 / 1.00). Validator rejections 1/45 (before ~6/45), forced
+abstentions 0 (before 4), wrong values stated 0. The golden set is unchanged at 1.00.
 
 **Prevention at scale:** A guardrail tuned on clean data needs re-testing under the
 failure it's meant for. Here staleness changed what "unbacked" means: the stale value
@@ -384,8 +388,10 @@ nonzero spread on a comparable workload. Three runs that happen to agree say lit
 band. kg's dip (→ 0.91) was flagged as "drift" mainly because the band has zero width;
 its real cause is #10.
 
-**Fix:** Pending decision. Options: more baseline runs, a floor from question-sampling
-error, or σ pooled over phases.
+**Fix (D37, 2026-10-25):** σ is floored at the probe set's sampling error √(p(1−p)/n), p
+clamped to [1/n, 1−1/n]. For n = 15: kg band [0.87, 1.13], rag ≈ ±0.2. Re-scored, the
+2026-10-21 kg dip (0.91) is within the band. The 2026-10-22 baseline then showed real
+run-to-run variation (rag 0.73 / 0.80 / 0.73), confirming σ = 0 was luck.
 
 **Prevention at scale:** Never accept a zero-variance noise estimate. Floor it with the
 sampling error of the eval set (√(p(1−p)/n)), or estimate σ from more runs. Report the
