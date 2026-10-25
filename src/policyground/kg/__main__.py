@@ -12,7 +12,7 @@ from pathlib import Path
 from psycopg.types.json import Jsonb
 
 from policyground.db import connect
-from policyground.seed.kg import KG
+from policyground.tenants.hotels.kg import KG
 
 
 def load(kg: KG) -> tuple[int, int]:

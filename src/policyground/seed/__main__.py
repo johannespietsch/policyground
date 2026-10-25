@@ -11,11 +11,11 @@ import json
 import random
 from pathlib import Path
 
-from policyground.eval.golden import build as build_golden
-from policyground.eval.golden import add_governing, build_fuzzy, build_hard
-from policyground.seed.generate import generate
-from policyground.seed.kg import KG
-from policyground.seed.render import Chooser, render_brand, render_chain, render_property
+from policyground.tenants.hotels.golden import build as build_golden
+from policyground.tenants.hotels.golden import add_governing, build_fuzzy, build_hard
+from policyground.tenants.hotels.generate import generate
+from policyground.tenants.hotels.kg import KG
+from policyground.tenants.hotels.render import Chooser, render_brand, render_chain, render_property
 
 
 def render_snapshot(kg: KG, date: str, root: Path, seed: int = 42, fresh: bool = False) -> dict:

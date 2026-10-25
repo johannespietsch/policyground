@@ -23,10 +23,10 @@ from pathlib import Path
 
 from confluent_kafka import Producer
 
-from policyground.eval.golden import _deadline, add_governing, refresh_expected
+from policyground.tenants.hotels.golden import _deadline, add_governing, refresh_expected
 from policyground.seed.__main__ import render_snapshot
-from policyground.seed.generate import CANCEL_WINDOWS, PET_FEES_EUR
-from policyground.seed.kg import KG, PolicyFact
+from policyground.tenants.hotels.generate import CANCEL_WINDOWS, PET_FEES_EUR
+from policyground.tenants.hotels.kg import KG, PolicyFact
 from policyground.stream.events import BOOTSTRAP, TOPIC, PolicyChanged
 
 P_WINDOW_CHANGE = 0.7  # otherwise the pet fee changes (only where pets are allowed)

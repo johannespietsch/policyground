@@ -23,8 +23,8 @@ from policyground.db import connect
 from policyground.eval.metrics_md import append_to_table
 from policyground.kg.lookup import property_context
 from policyground.retrieve import search
-from policyground.seed.kg import KG
-from policyground.seed.render import FEE_TEXT
+from policyground.tenants.hotels.kg import KG
+from policyground.tenants.hotels.render import FEE_TEXT
 
 
 def surface_text(q: dict, kg: KG) -> str:

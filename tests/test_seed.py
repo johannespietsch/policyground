@@ -1,5 +1,5 @@
-from policyground.seed.generate import generate
-from policyground.seed.render import render_property
+from policyground.tenants.hotels.generate import generate
+from policyground.tenants.hotels.render import render_property
 
 
 def test_same_seed_is_byte_identical():
@@ -27,7 +27,7 @@ def test_rate_plan_inherits_from_chain():
 def test_property_overrides_are_never_deferred_to_brand():
     import random
 
-    from policyground.seed.render import render_property
+    from policyground.tenants.hotels.render import render_property
 
     kg = generate()
     rng = random.Random(0)
@@ -42,8 +42,8 @@ def test_replayed_render_only_changes_mutated_entities():
     """D38 / INCIDENTS #13: one property's change must not re-word any other doc."""
     import random
 
-    from policyground.seed.kg import PolicyFact
-    from policyground.seed.render import Chooser
+    from policyground.tenants.hotels.kg import PolicyFact
+    from policyground.tenants.hotels.render import Chooser
 
     kg = generate()
     rec = Chooser(rng=random.Random("42-render"))

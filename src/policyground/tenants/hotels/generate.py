@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import random
 
-from policyground.seed.kg import KG, PolicyFact
+from policyground.tenants.hotels.kg import KG, PolicyFact
 
 N_CHAINS = 5
 BRANDS_PER_CHAIN = (2, 3)

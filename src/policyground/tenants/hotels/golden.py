@@ -14,7 +14,7 @@ from __future__ import annotations
 import random
 from datetime import date, datetime, timedelta  # noqa: F401
 
-from policyground.seed.kg import KG
+from policyground.tenants.hotels.kg import KG
 
 CHECKIN_BASE = date(2026, 11, 1)
 

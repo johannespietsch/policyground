@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import random
 
-from policyground.seed.kg import KG
+from policyground.tenants.hotels.kg import KG
 
 
 class Chooser:

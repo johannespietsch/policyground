@@ -5,9 +5,9 @@ import random
 
 import pytest
 
-from policyground.eval.golden import build
-from policyground.seed.generate import generate
-from policyground.seed.render import render_brand, render_chain, render_property
+from policyground.tenants.hotels.golden import build
+from policyground.tenants.hotels.generate import generate
+from policyground.tenants.hotels.render import render_brand, render_chain, render_property
 
 
 @pytest.fixture(scope="module")
@@ -60,7 +60,7 @@ def test_governing_doc_states_the_fact():
     from pathlib import Path
     import json as _json
     from policyground.eval.retrieval import surface_text
-    from policyground.seed.kg import KG
+    from policyground.tenants.hotels.kg import KG
 
     if not Path("data/hotels/golden.json").exists():
         pytest.skip("make seed")

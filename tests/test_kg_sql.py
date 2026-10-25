@@ -7,7 +7,7 @@ import psycopg
 import pytest
 
 from policyground.db import connect
-from policyground.seed.kg import KG
+from policyground.tenants.hotels.kg import KG
 
 KG_PATH = Path("data/hotels/kg.json")
 
