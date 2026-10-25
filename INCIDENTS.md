@@ -554,3 +554,32 @@ protocol. Route all logging to stderr at process start, and guard tool bodies, b
 third-party libraries print.
 
 **Time lost:** about 25 min (including the inconclusive raw-pipe probe).
+
+---
+
+## #17 Onboarding experiments overwrite each other in the shared database (M6, 2026-10-25)
+
+**Symptom:** The second onboarding run's done-check reported clearing 321 chunks, 308
+facts and 327 entities for tenant `insurance`. Those were the first run's rows, written
+from a *different* git worktree.
+
+**Actual cause:** Worktrees isolate code and files (`data/`, `corpus/`), but every checkout
+shares one Postgres, and rows are separated only by `tenant`. The done-check's reset step
+(added after run 1, so re-seeding can't leave stale version-1 facts behind) clears the
+tenant's rows before loading. Two experiments with the same tenant name therefore
+overwrite each other's database state. In this case that was intended, since run 1's data
+was superseded, but nothing prevented it.
+
+**Fix:** None needed for this run. Main was re-seeded from the merged code and is
+byte-identical to run 2's output (kg.json, golden set, render choices, 87 docs). For
+future parallel experiments, give each a distinct tenant name (e.g. `insurance_r3`), or
+a separate database per worktree.
+
+**Also noted:** The subagent reported that its worktree's command guard refused any shell
+command containing "eval", which includes the path `src/policyground/eval/`. That's a
+harness restriction, not a project issue; it worked around it with the file-reading tool.
+
+**Prevention at scale:** Isolate experiments at the data layer, not just the code layer:
+a schema or database per run, or a run-scoped tenant ID.
+
+**Time lost:** 0.
