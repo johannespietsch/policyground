@@ -36,3 +36,25 @@ DISAGREEMENT = Gauge("policyground_kg_vector_disagreement", "Share of properties
 SNAPSHOT_AGE = Gauge("policyground_newest_snapshot_age_seconds",
                      "Age of the newest ingested production snapshot (by ingest time)", ["tenant"])
 EXPORTER_ERRORS = Counter("policyground_exporter_errors_total", "Failed health computations", ["reason"])
+
+
+TENANTS = ["hotels"]  # known tenants; M6 adds the second
+
+
+def init_series(*names: str) -> None:
+    """Create every known label combination at 0 (INCIDENTS #15). A labelled counter only
+    appears on its first increment, and Prometheus can't compute increase()/rate() across
+    an absent -> N jump, so the first burst after a restart would read as zero."""
+    if "api" in names:
+        for t in TENANTS:
+            for route in ("kg", "unresolved"):
+                for outcome in ("answered", "abstained", "error"):
+                    REQUESTS.labels(t, route, outcome)
+            for reason in ("unresolved_property", "model", "validator", "step_limit"):
+                ABSTENTIONS.labels(t, reason)
+            for d in ("in", "out"):
+                TOKENS.labels(t, d)
+            COST.labels(t); LLM_CALLS.labels(t); VALIDATOR_REJECTIONS.labels(t)
+    if "consumer" in names:
+        for outcome in ("applied", "ignored"):
+            EVENTS.labels(outcome)

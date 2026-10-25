@@ -67,6 +67,7 @@ def main() -> None:
     args = ap.parse_args()
     log = logs.setup("consumer")
     if args.metrics_port:
+        metrics.init_series("consumer")
         start_http_server(args.metrics_port)
 
     consumer = Consumer({

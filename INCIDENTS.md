@@ -497,3 +497,31 @@ Exclude health and metrics endpoints from tracing by default, and know which lib
 emit spans on their own.
 
 **Time lost:** about 20 min.
+
+---
+
+## #15 The incident's main event read as zero on the dashboard (M5, 2026-10-25)
+
+**Symptom:** During the M5 dashboard drill (mutation 2026-10-23, consumer running
+live), disagreement rose to 0.10, but `increase(policyground_stream_events_total[5m])`
+showed **0 applied events**, although the consumer had just applied 15.
+
+**Actual cause:** A labelled Prometheus counter only exists after its first increment.
+Prometheus's first sample of `{outcome="applied"}` was already 15, and `increase()` /
+`rate()` can't see a jump from "no series" to N. So the first burst after every process
+start is invisible, which is exactly the burst an incident consists of.
+
+**Fix:** `metrics.init_series()` creates every known label combination at 0 on startup
+(consumer: applied/ignored; API: every route × outcome, abstain reason, token direction,
+per known tenant). Verified after a restart: the series are present at 0.0.
+
+**Also on the way:** A Loki range query appeared to lose most log lines. Alloy's own
+metrics showed every line read and sent (0 dropped), and an instant query returned all of
+them (78 / 15 / 12). That one was my query, not the pipeline.
+
+**Prevention at scale:** Initialise label series at 0 for every known value. Test
+dashboards with a drill (a deliberately induced incident) rather than steady-state
+traffic. When a log count looks wrong, check the shipper's own metrics before blaming
+the shipper.
+
+**Time lost:** about 15 min.

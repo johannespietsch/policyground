@@ -25,6 +25,7 @@ from policyground.obs import logs, metrics, tracing  # noqa: E402
 
 log = logs.setup("api")
 tracing.setup("api")
+metrics.init_series("api")
 app = FastAPI(title="PolicyGround")
 app.mount("/metrics", make_asgi_app())
 graph = build()
