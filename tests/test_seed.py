@@ -1,4 +1,5 @@
 from policyground.seed.generate import generate
+from policyground.seed.render import render_property
 
 
 def test_same_seed_is_byte_identical():
@@ -35,3 +36,20 @@ def test_property_overrides_are_never_deferred_to_brand():
         if manifest["cancel_by_reference"]:
             source = kg.resolve("property", prop["id"])["cancel_window_hours"]["source_type"]
             assert source != "property", prop["id"]
+
+
+def test_replayed_render_only_changes_mutated_entities():
+    """D38 / INCIDENTS #13: one property's change must not re-word any other doc."""
+    import random
+
+    from policyground.seed.kg import PolicyFact
+    from policyground.seed.render import Chooser
+
+    kg = generate()
+    rec = Chooser(rng=random.Random("42-render"))
+    before = {p["id"]: render_property(kg, p["id"], rec)[0] for p in kg.properties}
+    # P001 gains its own override, which also removes its deferral draw.
+    kg.policy_facts.append(PolicyFact("property", "P001", "cancel_window_hours", 72, "2026-10-21", 1))
+    rep = Chooser(saved=rec.saved)
+    after = {p["id"]: render_property(kg, p["id"], rep)[0] for p in kg.properties}
+    assert [pid for pid in before if before[pid] != after[pid]] in ([], ["P001"])

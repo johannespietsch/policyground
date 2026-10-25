@@ -18,6 +18,50 @@ import random
 
 from policyground.seed.kg import KG
 
+
+class Chooser:
+    """Every random render choice goes through here, keyed by (entity, name) (D38).
+
+    record: draws from the shared RNG in exactly the legacy order (so a fresh corpus is
+            byte-identical to before) and remembers each choice.
+    replay: reuses the remembered choice, so an entity whose facts didn't change renders
+            identically in every later snapshot. A choice never made before (e.g. a new
+            rate plan) is drawn from a per-entity RNG and remembered.
+    """
+
+    def __init__(self, rng: random.Random | None = None, saved: dict | None = None, seed: int = 42):
+        self.rng, self.saved, self.seed = rng, saved if saved is not None else {}, seed
+        self.entity = ""
+
+    def for_entity(self, entity_id: str) -> "Chooser":
+        self.entity = entity_id
+        self.saved.setdefault(entity_id, {})
+        return self
+
+    def _source(self) -> random.Random:
+        return self.rng or random.Random(f"{self.seed}-render-{self.entity}")
+
+    def _get(self, name: str, draw):
+        mine = self.saved[self.entity]
+        if self.rng is None and name in mine:
+            return mine[name]
+        mine[name] = draw(self._source())
+        return mine[name]
+
+    def choice(self, name: str, seq: list):
+        # r.choice (not randrange) so record mode consumes the RNG exactly as before.
+        return seq[self._get(name, lambda r: seq.index(r.choice(seq)))]
+
+    def sample(self, name: str, seq: list, k: int) -> list:
+        return [seq[i] for i in self._get(name, lambda r: [seq.index(x) for x in r.sample(seq, k)])]
+
+    def random(self, name: str) -> float:
+        return self._get(name, lambda r: r.random())
+
+
+def _chooser(rng) -> Chooser:
+    return rng if isinstance(rng, Chooser) else Chooser(rng=rng)
+
 FEE_TEXT = {
     "first_night": "the first night's rate",
     "full_stay": "the full cost of the stay",
@@ -99,12 +143,13 @@ BRAND_FOLLOWS_CHAIN = [
 ]
 
 
-def cancel_text(pol: dict, rng: random.Random) -> str:
-    return rng.choice(CANCEL).format(hours=pol["cancel_window_hours"]["value"],
-                                     fee=FEE_TEXT[pol["late_cancel_fee"]["value"]])
+def cancel_text(pol: dict, ch: Chooser) -> str:
+    return ch.choice("cancel", CANCEL).format(hours=pol["cancel_window_hours"]["value"],
+                                              fee=FEE_TEXT[pol["late_cancel_fee"]["value"]])
 
 
-def render_chain(kg: KG, chain_id: str, rng: random.Random) -> str:
+def render_chain(kg: KG, chain_id: str, rng) -> str:
+    ch = _chooser(rng).for_entity(f"chain-{chain_id}")
     chain = kg._by_id("chains", chain_id)
     pol = kg.resolve("chain", chain_id)
     brands = ", ".join(b["name"] for b in kg.brands if b["chain_id"] == chain_id)
@@ -114,18 +159,19 @@ Chain ID: {chain_id} · Brands: {brands}
 
 ## Cancellation
 
-{cancel_text(pol, rng)}
+{cancel_text(pol, ch)}
 """
 
 
-def render_brand(kg: KG, brand_id: str, rng: random.Random) -> str:
+def render_brand(kg: KG, brand_id: str, rng) -> str:
+    ch = _chooser(rng).for_entity(f"brand-{brand_id}")
     brand = kg._by_id("brands", brand_id)
     chain = kg._by_id("chains", brand["chain_id"])
     pol = kg.resolve("brand", brand_id)
     if pol["cancel_window_hours"]["source_type"] == "chain":
-        body = rng.choice(BRAND_FOLLOWS_CHAIN).format(brand=brand["name"], chain=chain["name"])
+        body = ch.choice("follows_chain", BRAND_FOLLOWS_CHAIN).format(brand=brand["name"], chain=chain["name"])
     else:
-        body = cancel_text(pol, rng)
+        body = cancel_text(pol, ch)
     return f"""# {brand['name']} — brand policy
 
 Brand ID: {brand_id} · Chain: {chain['name']}
@@ -136,9 +182,10 @@ Brand ID: {brand_id} · Chain: {chain['name']}
 """
 
 
-def render_property(kg: KG, property_id: str, rng: random.Random) -> tuple[str, dict]:
+def render_property(kg: KG, property_id: str, rng) -> tuple[str, dict]:
     """Return (markdown, manifest entry). The manifest records how the doc was
     rendered so the eval can break results down by question difficulty."""
+    ch = _chooser(rng).for_entity(property_id)
     prop = kg._by_id("properties", property_id)
     brand = kg._by_id("brands", prop["brand_id"])
     chain = kg._by_id("chains", brand["chain_id"])
@@ -146,29 +193,33 @@ def render_property(kg: KG, property_id: str, rng: random.Random) -> tuple[str, 
     pol = {k: v["value"] for k, v in resolved.items()}
 
     fmt = {"name": prop["name"], "city": prop["city"], "brand": brand["name"],
-           "chain": chain["name"], "adj": rng.choice(ADJECTIVES), "feature": rng.choice(FEATURES)}
-    overview = rng.choice(OVERVIEW).format(**fmt) + " " + " ".join(rng.sample(AMENITIES, 3))
+           "chain": chain["name"], "adj": ch.choice("adj", ADJECTIVES),
+           "feature": ch.choice("feature", FEATURES)}
+    overview = ch.choice("overview", OVERVIEW).format(**fmt) + " " + " ".join(ch.sample("amenities", AMENITIES, 3))
 
-    pets = (rng.choice(PETS_YES).format(fee=pol["pet_fee_eur"]) if pol["pets_allowed"]
-            else rng.choice(PETS_NO))
+    pets = (ch.choice("pets_yes", PETS_YES).format(fee=pol["pet_fee_eur"]) if pol["pets_allowed"]
+            else ch.choice("pets_no", PETS_NO))
 
     # Only inherited terms can be deferred; a property-level override must be stated.
+    # The draw is only made when eligible (as before), and kept: if the property later
+    # gains an override it must state its terms, whatever was drawn (D14, D38).
     cancel_by_reference = (resolved["cancel_window_hours"]["source_type"] != "property"
-                           and rng.random() < P_CANCEL_BY_REFERENCE)
-    cancellation = (rng.choice(CANCEL_BY_REFERENCE).format(brand=brand["name"])
-                    if cancel_by_reference else cancel_text(resolved, rng))
+                           and ch.random("defer") < P_CANCEL_BY_REFERENCE)
+    cancellation = (ch.choice("by_ref", CANCEL_BY_REFERENCE).format(brand=brand["name"])
+                    if cancel_by_reference else cancel_text(resolved, ch))
 
     plans = [p for p in kg.rate_plans if p["property_id"] == property_id]
-    plan_lines = "\n".join(f"- {rng.choice(PLAN_TEXT[p['kind']])} (rate plan {p['id']})" for p in plans)
+    plan_lines = "\n".join(f"- {ch.choice('plan:' + p['id'], PLAN_TEXT[p['kind']])} (rate plan {p['id']})"
+                           for p in plans)
 
     overview_section = ("Overview", overview)
     checkin = ("Check-in and check-out",
-               rng.choice(CHECKIN).format(check_in=pol["check_in_time"], check_out=pol["check_out_time"]))
+               ch.choice("checkin", CHECKIN).format(check_in=pol["check_in_time"], check_out=pol["check_out_time"]))
     cancel = ("Cancellation", cancellation)
     pets_section = ("Pets", pets)
     plans_section = ("Rate plans", plan_lines)
 
-    booking_first = rng.random() < P_BOOKING_FIRST
+    booking_first = ch.random("layout") < P_BOOKING_FIRST
     sections = ([cancel, plans_section, checkin, pets_section, overview_section] if booking_first
                 else [overview_section, checkin, cancel, pets_section, plans_section])
 

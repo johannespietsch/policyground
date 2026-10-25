@@ -15,24 +15,34 @@ from policyground.eval.golden import build as build_golden
 from policyground.eval.golden import add_governing, build_fuzzy, build_hard
 from policyground.seed.generate import generate
 from policyground.seed.kg import KG
-from policyground.seed.render import render_brand, render_chain, render_property
+from policyground.seed.render import Chooser, render_brand, render_chain, render_property
 
 
-def render_snapshot(kg: KG, date: str, root: Path, seed: int = 42) -> dict:
-    """Write corpus/<tenant>/<date>/ from the KG's current state; return the manifest."""
+def render_snapshot(kg: KG, date: str, root: Path, seed: int = 42, fresh: bool = False) -> dict:
+    """Write corpus/<tenant>/<date>/ from the KG's current state; return the manifest.
+
+    Render choices (layout, deferral, wording) are stored per entity in
+    data/<tenant>/render-choices.json and reused by every later snapshot, so only
+    entities whose facts changed render differently (D38, INCIDENTS #13). fresh=True
+    (a new `make seed`) records them anew from the legacy shared RNG stream.
+    """
+    choices_path = root / "data" / kg.tenant / "render-choices.json"
+    if fresh or not choices_path.exists():
+        ch = Chooser(rng=random.Random(f"{seed}-render"))
+    else:
+        ch = Chooser(saved=json.loads(choices_path.read_text()), seed=seed)
     corpus_dir = root / "corpus" / kg.tenant / date
     corpus_dir.mkdir(parents=True, exist_ok=True)
-    # Separate RNG stream for wording, so changing templates never changes the KG.
-    rng = random.Random(f"{seed}-render")
     for chain in kg.chains:
-        (corpus_dir / f"chain-{chain['id']}.md").write_text(render_chain(kg, chain["id"], rng))
+        (corpus_dir / f"chain-{chain['id']}.md").write_text(render_chain(kg, chain["id"], ch))
     for brand in kg.brands:
-        (corpus_dir / f"brand-{brand['id']}.md").write_text(render_brand(kg, brand["id"], rng))
+        (corpus_dir / f"brand-{brand['id']}.md").write_text(render_brand(kg, brand["id"], ch))
     manifest = {}
     for prop in kg.properties:
-        doc, manifest[prop["id"]] = render_property(kg, prop["id"], rng)
+        doc, manifest[prop["id"]] = render_property(kg, prop["id"], ch)
         (corpus_dir / f"{prop['id']}.md").write_text(doc)
     (root / "data" / kg.tenant / f"manifest-{date}.json").write_text(json.dumps(manifest, indent=2))
+    choices_path.write_text(json.dumps(ch.saved, indent=1, sort_keys=True))
     return manifest
 
 
@@ -53,7 +63,7 @@ def main() -> None:
         kg_path.parent.mkdir(parents=True, exist_ok=True)
         kg_path.write_text(kg.to_json())
 
-    manifest = render_snapshot(kg, args.date, args.root, args.seed)
+    manifest = render_snapshot(kg, args.date, args.root, args.seed, fresh=not args.corpus_only)
     if args.corpus_only:
         print(f"wrote snapshot corpus/{args.tenant}/{args.date} from existing {kg_path}")
         return

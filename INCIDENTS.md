@@ -441,7 +441,17 @@ the first mutated one (P001).
 - **Golden governing docs** were derived from the 10-16 layouts. They're wrong for
   properties whose deferral flipped.
 
-**Fix:** Pending decision (raised in chat).
+**Fix (D38, 2026-10-25):** Every render choice (layout, deferral, wording) now goes
+through a `Chooser`, keyed by entity, and is stored in `data/<tenant>/render-choices.json`.
+- Record mode (a fresh `make seed`) draws in exactly the legacy order. Recording from the
+  original world (regenerated from seed 42) reproduced `corpus/hotels/2026-10-16`
+  byte-for-byte, 0 of 167 files different.
+- Replay mode (every later snapshot) reuses each entity's choices. Rendering the mutated
+  KG changed exactly the 15 mutated docs, and only their values. A regression test covers
+  this.
+
+The 2026-10-21 snapshot stays as recorded, shifted and documented here. Snapshots from
+2026-10-22 on are rendered stably.
 
 **Prevention at scale:** A generator's output for one entity must depend only on that
 entity: seed per entity, never one shared stream. More generally, snapshot-to-snapshot
