@@ -51,9 +51,14 @@ def run_eval(tenant: str, probes: list[dict], expect: str, runs: int) -> dict[st
     return out
 
 
-def band(scores: list[float]) -> tuple[float, float]:
+def band(scores: list[float], n_questions: int) -> tuple[float, float]:
+    """mean +- 2 sigma, with sigma floored at the eval set's sampling error (D37,
+    INCIDENTS #11): sqrt(p(1-p)/n), p clamped to [1/n, 1-1/n] so p = 0 or 1 doesn't
+    collapse the floor to zero. A few identical runs then can't produce a zero-width band."""
     m = statistics.mean(scores)
-    sd = statistics.stdev(scores) if len(scores) > 1 else 0.0
+    run_sd = statistics.stdev(scores) if len(scores) > 1 else 0.0
+    p = min(max(m, 1 / n_questions), 1 - 1 / n_questions)
+    sd = max(run_sd, (p * (1 - p) / n_questions) ** 0.5)
     return m - 2 * sd, m + 2 * sd
 
 
@@ -143,7 +148,7 @@ def main() -> None:
         probes = json.loads(Path(f"data/{args.tenant}/probes-{args.date}.json").read_text())
         res = run_eval(args.tenant, probes, args.expect, args.runs)
         if args.phase == "baseline":
-            noise_path.write_text(json.dumps({g: band(v) for g, v in res.items()}))
+            noise_path.write_text(json.dumps({g: band(v, len(probes)) for g, v in res.items()}))
         noise = json.loads(noise_path.read_text()) if noise_path.exists() else {}
         for g, scores in res.items():
             lo, hi = noise.get(g, (None, None))

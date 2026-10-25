@@ -414,3 +414,38 @@ date": a second configuration belongs in a separate DAG, or in a mapped task ins
 one run.
 
 **Time lost:** about 20 min.
+
+---
+
+## #13 Mutating 15 properties re-worded 133 others (M4, 2026-10-25)
+
+**Found by:** `test_governing_doc_states_the_fact`, once it read the newest snapshot. Q03's
+property (P050) wasn't mutated, but its 2026-10-21 doc defers to "standard brand terms"
+where the 2026-10-16 doc stated "48 hours".
+
+**Measured:** Between the 10-16 and 10-21 snapshots, **148 property docs changed text, but
+only 15 were mutated**. 133 unmutated docs changed wording, and **74 flipped layout or
+deferral** (D13/D14 choices).
+
+**Actual cause:** Rendering uses one RNG stream for the whole corpus, in property order.
+Whether a property consumes a draw depends on its state: only inherited terms can defer
+(D14), so a new property-level override skips one `rng.random()`. Every later property
+then gets shifted draws. The first unmutated property affected (P006) comes right after
+the first mutated one (P001).
+
+**Impact on recorded results:**
+- Unaffected: KG/vector disagreement (it compares values), the stale phase (it read old
+  vectors), the noise band, the kg scores.
+- **Confounded:** the refreshed rag score (0.84) and the 10-21 retrieval metrics, which
+  ran on a corpus where 74 unchanged docs had a different layout.
+- **Golden governing docs** were derived from the 10-16 layouts. They're wrong for
+  properties whose deferral flipped.
+
+**Fix:** Pending decision (raised in chat).
+
+**Prevention at scale:** A generator's output for one entity must depend only on that
+entity: seed per entity, never one shared stream. More generally, snapshot-to-snapshot
+diffs should be checked for *unexpected* changes, not only expected ones. A "changed docs
+vs changed facts" count would have caught this the moment the snapshot was written.
+
+**Time lost:** about 15 min so far.

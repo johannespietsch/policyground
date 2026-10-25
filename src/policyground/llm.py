@@ -79,6 +79,9 @@ Fact keys:
 Rules:
 - Use ONLY the facts and excerpts given. Never guess or use outside knowledge.
 - Cite the ID of every fact and excerpt your answer relies on.
+- If you mention a value from an excerpt (for example to note that it conflicts with a
+  fact), cite that excerpt. Otherwise don't restate excerpt values that conflict with
+  the facts.
 - If they don't contain the information asked for, set abstain to true and say what
   is missing.
 - When the question asks for a deadline, compute and state the exact date and time.

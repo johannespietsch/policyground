@@ -68,5 +68,7 @@ def test_governing_doc_states_the_fact():
     for q in _json.loads(Path("data/hotels/golden.json").read_text()):
         if q["expected"]["kind"] == "abstain":
             continue
-        text = "\n".join(Path(f"corpus/hotels/2026-10-16/{d}.md").read_text() for d in q["governing"]["docs"])
+        # Golden answers follow the current truth (D33), stated in the newest snapshot.
+        latest = max(Path("corpus/hotels").iterdir())
+        text = "\n".join((latest / f"{d}.md").read_text() for d in q["governing"]["docs"])
         assert surface_text(q, kg).lower() in text.lower(), q["id"]
