@@ -1,5 +1,5 @@
 # Hotels: partner/property policies for customer-support agents (D1). The first tenant;
-# skills/onboard-tenant/SKILL.md explains every key.
+# .claude/skills/onboard-tenant/SKILL.md explains every key.
 tenant: hotels
 levels: [chain, brand, property, rate_plan]   # root -> leaf
 subject: property        # the level questions name; resolved by fuzzy name match (D22)
